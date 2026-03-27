@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1774375311165,
+      "tag": "0000_easy_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774376011983,
+      "tag": "0001_perfect_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774376089164,
+      "tag": "0002_cold_longshot",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,18 +1,8 @@
-node_modules
-.next
-dist
-coverage
-.env.local
-.env
+node_modules/
+dist/
+.manus-logs/
+.webdev/
+.manus/
+*.log
 .DS_Store
-references
-.forge-data
-apps/web/.next
-apps/web/node_modules
-apps/runner/node_modules
-packages/shared/dist
-packages/agent/dist
-packages/ui/dist
-
-# Local Netlify folder
-.netlify
+pnpm-lock.yaml

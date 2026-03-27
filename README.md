@@ -1,77 +1,107 @@
-# Forge
+# Local Manus Agent
 
-Forge is a premium, Manus-style operator product built as a new monorepo so the existing site in this workspace stays untouched. It ships with a pixel-close async operator UI, Stripe Hosted Checkout, a local runner, and Netlify-ready frontend deployment.
+A comprehensive local AI agent powered by **Ollama** and your **Claude subscription** — replicating the full Manus experience on your Mac mini. No API keys required for Claude; uses your existing subscription directly.
 
-## Workspace Layout
+## Features
 
-- `apps/web`: Next.js app, App Router pages, API routes, pricing, auth, billing, and run UI
-- `apps/runner`: local CLI runner that registers itself, heartbeats back to the app, and advertises supported tools
-- `packages/shared`: shared product types and contracts
-- `packages/agent`: planner, tool registry, approval logic, and run-loop helpers
-- `packages/ui`: shared brand tokens and presentation helpers
-- `supabase/schema.sql`: starter schema for profiles, runs, billing, credits, and artifacts
+### Core Agent Engine
+- **Ollama Integration** — Connects to localhost:11434 for local model inference (Llama 3, Mistral, Phi, etc.)
+- **Claude Subscription** — Two modes: Cookie relay (fast, headless) or Browser automation (visual, interactive)
+- **Streaming Responses** — Token-by-token streaming with live tok/s metrics
+- **Tool Execution** — Shell commands, file operations, web scraping, Python execution, web search, memory
 
-## What’s Implemented
+### Chat Interface
+- Dark theme matching Manus aesthetic
+- Message bubbles with markdown rendering and syntax highlighting
+- Collapsible tool call details inline in chat
+- Provider selector: switch between Ollama (local) and Claude (subscription)
+- Conversation sidebar with history
 
-- Forge brand system and logo
-- pixel-close Manus-style shell and composer
-- auth UI for sign-in, sign-up, and password reset
-- workspace, run detail, usage, billing, settings, pricing, success, and cancel pages
-- API routes for run preview/create, approval/reject/cancel, runner register/heartbeat, Stripe checkout, Stripe portal, webhook verification, upload signing stub, and NVIDIA key validation stub
-- local runner registration and heartbeat loop
-- Stripe Hosted Checkout integration scaffold for subscriptions and one-time credit packs
+### Specialized Features
+- **Wide Research** — Parallel data collection from multiple sources
+- **Skills System** — Reusable workflows with categories and search
+- **Connectors** — Telegram, YouTube, Webhook, and API integrations
+- **Scheduled Tasks** — Recurring automation with cron expressions
+- **Memory** — Long-term preference and context retention
+- **System Prompts** — Editor with preset templates for agent personalities
 
-## Local Commands
+### Dashboard & Monitoring
+- Tool execution history with filters
+- Latency and success rate metrics
+- JSON response inspection panel
+- Model memory/size indicators
+
+## Quick Start
+
+### Prerequisites
+- **Node.js 18+** and **pnpm**
+- **Ollama** installed and running (`brew install ollama && ollama serve`)
+- **qwen3:8b** model pulled (`ollama pull qwen3:8b`) — lightweight 8B local model, runs efficiently on 16GB RAM
+
+### Installation
 
 ```bash
-npm install
-npm run dev
-npm run dev:runner
-npm run typecheck
-npm run build
+# Clone the repository
+git clone https://github.com/carswqqqq1/README.git
+cd README
+
+# Install dependencies
+pnpm install
+
+# Start the development server
+pnpm dev
 ```
 
-## Environment Setup
+The app will be available at `http://localhost:3000`.
 
-Copy `.env.example` to `.env.local` in the repo root and add:
+### Using Claude (No API Key)
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `STRIPE_SECRET_KEY`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_PRO_MONTHLY`
-- `STRIPE_PRICE_CREDITS_SMALL`
-- `STRIPE_PRICE_CREDITS_LARGE`
-- `STRIPE_BILLING_PORTAL_CONFIGURATION_ID`
-- `NVIDIA_API_KEY` if you want remote provider routing
-- `NVIDIA_BASE_URL`
-- `NVIDIA_MODEL_DEFAULT`
-- `NVIDIA_MODEL_FAST`
-- `NVIDIA_MODEL_CODE`
-- `NVIDIA_MODEL_REASONING`
-- `OLLAMA_BASE_URL` if you want local model fallback
-- `FORGE_APP_URL` if the runner should heartbeat to a non-local web URL
+#### Cookie Relay Mode (Recommended)
+1. Log into [claude.ai](https://claude.ai) in your browser
+2. Open DevTools → Application → Cookies → claude.ai
+3. Copy the `sessionKey` cookie value
+4. Go to Settings → Claude → Cookie Relay → Paste and Connect
 
-## Stripe Setup
+#### Browser Automation Mode
+1. Go to Settings → Claude → Browser Automation
+2. Set your Chrome path (auto-detected on macOS)
+3. Click "Launch Browser" — it opens Chrome with your profile
+4. The agent types messages directly into claude.ai
 
-1. Create a `Forge Pro` recurring monthly product and price.
-2. Create two one-time credit-pack prices.
-3. Add the resulting Stripe Price IDs to the env vars in `.env.local`.
-4. Configure a Customer Portal and copy its configuration ID.
-5. Point your Stripe webhook endpoint to `/api/stripe/webhook`.
+## Optimized For
 
-## Netlify Setup
+| Hardware | Recommendation |
+|----------|---------------|
+| Mac mini M1/M2, 16GB RAM | **qwen3:8b** (8B local model) — Recommended default |
+| 7B models | llama3.2, mistral — fast, fits in RAM |
+| 13B models | Good balance, may use some swap |
+| 3B models | Ultra-fast for simple tasks |
+| 70B+ local models | Avoid on 16GB — extremely slow, too large |
 
-1. Create a new GitHub repository rooted at `forge/`.
-2. Connect that repo to Netlify.
-3. Use the included `netlify.toml`.
-4. Add the public app, Supabase, and Stripe env vars in Netlify.
-5. Keep server-only secrets protected in Netlify or Supabase function config.
+## Tech Stack
 
-## Notes
+- **Frontend:** React 19, Tailwind CSS 4, shadcn/ui, Wouter
+- **Backend:** Express 4, tRPC 11, Drizzle ORM
+- **Database:** MySQL/TiDB (conversations, messages, tools, skills, connectors)
+- **Inference:** Ollama (local) + Claude subscription (cloud)
+- **Browser Automation:** Puppeteer-core
 
-- The billing portal needs a real stored Stripe customer ID to open successfully.
-- The NVIDIA validation endpoint is a safe format check stub for now, not a live provider ping.
-- The upload-signing endpoint returns a storage path contract today and should be swapped to real Supabase signed uploads once the project is configured.
+## Project Structure
+
+```
+client/src/
+  pages/          — All feature pages (Chat, Dashboard, Logs, etc.)
+  components/     — Reusable UI components + AppLayout
+server/
+  ollama.ts       — Ollama HTTP API client
+  claude.ts       — Claude subscription client (cookie + browser)
+  tools.ts        — Tool execution engine
+  db.ts           — Database query helpers
+  routers.ts      — tRPC procedures
+drizzle/
+  schema.ts       — Database schema (13 tables)
+```
+
+## License
+
+MIT
