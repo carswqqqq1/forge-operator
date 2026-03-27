@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+:root {
+  --forge-graphite: #090a0d;
+  --forge-graphite-soft: #101217;
+  --forge-steel: #171b22;
+  --forge-cloud: #f5f7fa;
+  --forge-mist: rgba(245, 247, 250, 0.68);
+  --forge-line: rgba(255, 255, 255, 0.09);
+  --forge-panel: rgba(255, 255, 255, 0.05);
+  --forge-panel-strong: rgba(255, 255, 255, 0.08);
+  --forge-lime: #d3ff63;
+  --background: var(--forge-graphite);
+  --foreground: var(--forge-cloud);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--forge-graphite);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(211, 255, 99, 0.24);
+  color: white;
+}
+
+.forge-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.forge-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.forge-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}

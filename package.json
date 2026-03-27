@@ -1,0 +1,18 @@
+{
+  "name": "forge-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @forge/web",
+    "dev:web": "npm run dev --workspace @forge/web",
+    "dev:runner": "npm run dev --workspace @forge/runner",
+    "build": "npm run build --workspace @forge/shared && npm run build --workspace @forge/agent && npm run build --workspace @forge/ui && npm run build --workspace @forge/web && npm run build --workspace @forge/runner",
+    "lint": "npm run lint --workspace @forge/web",
+    "typecheck": "npm run typecheck --workspace @forge/shared && npm run typecheck --workspace @forge/agent && npm run typecheck --workspace @forge/ui && npm run typecheck --workspace @forge/web && npm run typecheck --workspace @forge/runner",
+    "test": "npm run test --workspace @forge/shared"
+  }
+}

@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build --workspace @forge/web"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--workspaces"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
