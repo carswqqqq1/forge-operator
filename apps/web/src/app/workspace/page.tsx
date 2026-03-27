@@ -8,12 +8,12 @@ const quickLinks = ["Create slides", "Build website", "Develop desktop apps", "D
 export default function WorkspacePage() {
   return (
     <AppShell title="What can I do for you?" subtitle="Launch async work, inspect live runs, and keep every artifact in one premium workspace.">
-      <div className="flex min-h-[calc(100vh-90px)] flex-col items-center pt-20">
-        <h1 className="max-w-[12ch] text-center font-[family-name:var(--font-serif)] text-[4rem] leading-none tracking-[-0.06em] text-[var(--forge-ink)]">
+      <div className="flex min-h-[calc(100vh-90px)] flex-col items-center pt-18">
+        <h1 className="max-w-[12ch] text-center font-[family-name:var(--font-serif)] text-[4.2rem] leading-[0.95] tracking-[-0.06em] text-[var(--forge-ink)]">
           What can I do for you?
         </h1>
 
-        <div className="mt-10 w-full max-w-[670px] rounded-[1.8rem] border border-[var(--forge-border)] bg-white shadow-[0_10px_30px_rgba(35,32,29,0.04)]">
+        <div className="mt-10 w-full max-w-[700px] rounded-[1.8rem] border border-[var(--forge-border)] bg-white shadow-[0_10px_30px_rgba(35,32,29,0.04)]">
           <div className="p-4">
             <PromptComposer compact />
           </div>
@@ -44,7 +44,7 @@ export default function WorkspacePage() {
         <div className="mt-28 w-full max-w-[650px] rounded-[1.6rem] border border-[var(--forge-border)] bg-[var(--forge-bg-soft)] p-4">
           <div className="grid grid-cols-[1.5fr_0.8fr] gap-4">
             <div className="p-4">
-              <div className="text-3xl font-semibold tracking-[-0.04em] text-[var(--forge-ink)]">Download Forge for macOS</div>
+              <div className="text-3xl font-semibold tracking-[-0.04em] text-[var(--forge-ink)]">Download Forge for Windows or macOS</div>
               <div className="mt-2 max-w-[28ch] text-lg leading-8 text-[var(--forge-muted)]">
                 Access local files and work seamlessly with your desktop runner.
               </div>

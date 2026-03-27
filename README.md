@@ -46,6 +46,11 @@ Copy `.env.example` to `.env.local` in the repo root and add:
 - `STRIPE_PRICE_CREDITS_LARGE`
 - `STRIPE_BILLING_PORTAL_CONFIGURATION_ID`
 - `NVIDIA_API_KEY` if you want remote provider routing
+- `NVIDIA_BASE_URL`
+- `NVIDIA_MODEL_DEFAULT`
+- `NVIDIA_MODEL_FAST`
+- `NVIDIA_MODEL_CODE`
+- `NVIDIA_MODEL_REASONING`
 - `OLLAMA_BASE_URL` if you want local model fallback
 - `FORGE_APP_URL` if the runner should heartbeat to a non-local web URL
 

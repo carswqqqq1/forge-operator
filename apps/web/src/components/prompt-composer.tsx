@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Plus } from "lucide-react";
+import { ArrowUp, Github, Image as ImageIcon, Mic, Monitor, Plus, Volume2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { suggestedPrompts } from "@/lib/mock-data";
@@ -60,21 +60,48 @@ export function PromptComposer({ compact = false }: PromptComposerProps) {
             onChange={(event) => setValue(event.target.value)}
           />
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setValue(suggestedPrompts[0] || "")}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--forge-border)] bg-[var(--forge-bg-soft)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleCreateRun}
-              disabled={loading}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--forge-chip)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-accent)] hover:text-white disabled:cursor-not-allowed disabled:opacity-65"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setValue(suggestedPrompts[0] || "")}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--forge-border)] bg-[var(--forge-bg-soft)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1 rounded-full border border-[var(--forge-border)] px-1.5 py-1">
+                {[Github, ImageIcon, Monitor].map((Icon, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
+              >
+                <Volume2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRun}
+                disabled={loading}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--forge-chip)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-accent)] hover:text-white disabled:cursor-not-allowed disabled:opacity-65"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -24,7 +24,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${inter.variable} ${cormorant.variable} h-full antialiased`}
+      style={{ colorScheme: "light", backgroundColor: "#f7f5f1" }}
+    >
       <body className="min-h-full bg-[var(--forge-bg)] text-[var(--forge-ink)]">{children}</body>
     </html>
   );

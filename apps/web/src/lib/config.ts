@@ -4,6 +4,13 @@ export const appConfig = {
   defaultProvider:
     (process.env.NEXT_PUBLIC_DEFAULT_MODEL_PROVIDER as "nvidia_free" | "ollama_local" | undefined) ||
     "nvidia_free",
+  nvidiaBaseUrl: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
+  models: {
+    default: process.env.NVIDIA_MODEL_DEFAULT || "meta/llama-3.1-70b-instruct",
+    fast: process.env.NVIDIA_MODEL_FAST || "meta/llama-3.1-8b-instruct",
+    code: process.env.NVIDIA_MODEL_CODE || "qwen/qwen2.5-coder-32b-instruct",
+    reasoning: process.env.NVIDIA_MODEL_REASONING || "deepseek-ai/deepseek-v3.1",
+  },
 };
 
 export const billingCatalog = [

@@ -1,5 +1,6 @@
 import { buildCostPreview } from "@forge/agent";
 import { fail, ok, readJson } from "@/lib/server/route-utils";
+import { createConversation } from "@/lib/server/demo-chat-store";
 
 type CreateRunBody = {
   prompt?: string;
@@ -14,18 +15,17 @@ export async function POST(request: Request) {
     return fail("Prompt is required.");
   }
 
-  const now = new Date().toISOString();
-  const runId = `run_${Date.now()}`;
+  const conversation = await createConversation(prompt);
   const preview = buildCostPreview(prompt);
 
   return ok({
     run: {
-      id: runId,
+      id: conversation.id,
       prompt,
       projectId: body?.projectId || "default-project",
-      status: "queued",
-      createdAt: now,
-      updatedAt: now,
+      status: conversation.status,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
       preview,
     },
   });
