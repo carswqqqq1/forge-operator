@@ -51,30 +51,34 @@ export function PromptComposer({ compact = false }: PromptComposerProps) {
 
   return (
     <div className="w-full">
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 px-4 py-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+      <div className="rounded-[1.8rem] border border-[var(--forge-border)] bg-white px-4 py-4 shadow-[0_12px_26px_rgba(35,32,29,0.05)]">
         <div className="flex min-h-[7.25rem] flex-col justify-between gap-4 sm:min-h-[7.75rem]">
           <textarea
-            className="min-h-[4.25rem] w-full resize-none bg-transparent text-[1rem] leading-7 text-white/85 outline-none placeholder:text-white/28"
+            className="min-h-[4.25rem] w-full resize-none bg-transparent text-[1rem] leading-7 text-[var(--forge-ink)] outline-none placeholder:text-[var(--forge-muted)]"
             placeholder={placeholder}
             value={value}
             onChange={(event) => setValue(event.target.value)}
           />
           <div className="flex items-center justify-between">
-            <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/7 text-white/70 transition hover:border-white/20 hover:bg-white/12">
+            <button
+              type="button"
+              onClick={() => setValue(suggestedPrompts[0] || "")}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--forge-border)] bg-[var(--forge-bg-soft)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-chip)]"
+            >
               <Plus className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={handleCreateRun}
               disabled={loading}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-[#d3ff63] hover:text-black disabled:cursor-not-allowed disabled:opacity-65"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--forge-chip)] text-[var(--forge-muted)] transition hover:bg-[var(--forge-accent)] hover:text-white disabled:cursor-not-allowed disabled:opacity-65"
             >
               <ArrowUp className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
-      {error ? <p className="mt-3 text-sm text-rose-200/88">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-[#965454]">{error}</p> : null}
 
       {!compact ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -83,7 +87,7 @@ export function PromptComposer({ compact = false }: PromptComposerProps) {
               key={prompt}
               type="button"
               onClick={() => setValue(prompt)}
-              className="rounded-full border border-white/10 bg-white/4 px-4 py-2.5 text-sm text-white/78 transition hover:border-white/20 hover:bg-white/10"
+              className="rounded-full border border-[var(--forge-border)] bg-white px-4 py-2.5 text-sm text-[var(--forge-ink-soft)] transition hover:bg-[var(--forge-chip)]"
             >
               {prompt}
             </button>

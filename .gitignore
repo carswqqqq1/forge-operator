@@ -5,6 +5,7 @@ coverage
 .env.local
 .env
 .DS_Store
+references
 apps/web/.next
 apps/web/node_modules
 apps/runner/node_modules

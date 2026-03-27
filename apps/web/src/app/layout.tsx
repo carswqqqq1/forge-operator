@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Sora } from "next/font/google";
+import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 
-const sora = Sora({
+const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
 });
@@ -24,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sora.variable} ${cormorant.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[var(--forge-graphite)] text-[var(--forge-cloud)]">{children}</body>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable} h-full antialiased`}>
+      <body className="min-h-full bg-[var(--forge-bg)] text-[var(--forge-ink)]">{children}</body>
     </html>
   );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, ChevronRight, CircleHelp, CreditCard, FolderOpen, History, LayoutGrid, Settings2, Sparkles } from "lucide-react";
+import { Bell, ChevronRight, CircleHelp, CreditCard, FolderOpen, History, LayoutGrid, PanelLeft, Search, Settings2, Sparkles } from "lucide-react";
 import { ForgeLogo } from "./forge-logo";
 
 type AppShellProps = {
@@ -18,20 +18,17 @@ const navItems = [
 
 export function AppShell({ title, subtitle, children }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),transparent_32%),linear-gradient(180deg,#0b0c0f_0%,#111216_35%,#121318_100%)] text-white">
-      <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-4 py-4 sm:px-6">
-        <aside className="hidden w-[270px] shrink-0 rounded-[2rem] border border-white/8 bg-white/4 px-5 py-5 backdrop-blur-xl xl:flex xl:flex-col">
-          <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-screen bg-[var(--forge-bg)] text-[var(--forge-ink)]">
+      <div className="sr-only">
+        {title} {subtitle}
+      </div>
+      <div className="mx-auto flex min-h-screen max-w-[1480px] gap-4">
+        <aside className="hidden w-[272px] shrink-0 border-r border-[var(--forge-border)] bg-[var(--forge-bg-soft)] px-3 py-4 xl:flex xl:flex-col">
+          <div className="mb-5 flex items-center justify-between px-2">
             <ForgeLogo />
-            <button className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/65">
-              <CircleHelp className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mb-6 rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
-            <div className="mb-2 text-xs uppercase tracking-[0.28em] text-white/38">Workspace</div>
-            <div className="mb-1 text-base text-white">Forge Pro</div>
-            <div className="text-sm text-white/52">Pixel-close operator build with replay, credits, and billing.</div>
+            <Link href="/settings" className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--forge-muted)] transition hover:bg-white">
+              <PanelLeft className="h-4 w-4" />
+            </Link>
           </div>
 
           <nav className="space-y-1">
@@ -41,7 +38,7 @@ export function AppShell({ title, subtitle, children }: AppShellProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group flex items-center justify-between rounded-2xl px-3 py-3 text-white/72 transition hover:bg-white/8 hover:text-white"
+                  className="group flex items-center justify-between rounded-xl px-3 py-2.5 text-[var(--forge-ink-soft)] transition hover:bg-white hover:text-[var(--forge-ink)]"
                 >
                   <div className="flex items-center gap-3">
                     <Icon className="h-4 w-4" />
@@ -53,62 +50,80 @@ export function AppShell({ title, subtitle, children }: AppShellProps) {
             })}
           </nav>
 
-          <div className="mt-8">
-            <div className="mb-3 text-xs uppercase tracking-[0.28em] text-white/35">Recent runs</div>
+          <div className="mt-7 px-3">
+            <div className="mb-3 flex items-center justify-between text-xs font-medium text-[var(--forge-muted)]">
+              <span>Projects</span>
+              <span className="text-lg leading-none">+</span>
+            </div>
+            <Link href="/settings" className="flex items-center gap-3 rounded-xl px-2 py-2 text-sm text-[var(--forge-ink-soft)] transition hover:bg-white">
+              <FolderOpen className="h-4 w-4" />
+              <span>New project</span>
+            </Link>
+          </div>
+
+          <div className="mt-7 min-h-0 flex-1 px-3">
+            <div className="mb-3 flex items-center justify-between text-xs font-medium text-[var(--forge-muted)]">
+              <span>All tasks</span>
+              <Search className="h-3.5 w-3.5" />
+            </div>
             <div className="space-y-2">
               {[
+                "How to Create a Local Wrapper for Manus",
                 "Comprehensive research on Manus",
                 "Checkout flow UX audit",
-                "Replay browser task and extract forms",
+                "How do you work",
+                "How to Build a Low-Cost Cloud Alternative",
+                "Analyzing Photos and Website for Improvements",
               ].map((entry) => (
-                <button
+                <Link
                   key={entry}
-                  className="flex w-full items-start gap-3 rounded-2xl border border-white/6 bg-white/4 px-3 py-3 text-left transition hover:bg-white/8"
+                  href="/runs/run_02"
+                  className="flex w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left transition hover:bg-white"
                 >
-                  <History className="mt-0.5 h-4 w-4 shrink-0 text-white/45" />
-                  <span className="text-sm leading-6 text-white/67">{entry}</span>
-                </button>
+                  <History className="mt-0.5 h-4 w-4 shrink-0 text-[var(--forge-muted)]" />
+                  <span className="text-sm leading-6 text-[var(--forge-ink-soft)]">{entry}</span>
+                </Link>
               ))}
             </div>
           </div>
 
-          <div className="mt-auto rounded-[1.7rem] border border-[#d3ff63]/20 bg-[linear-gradient(180deg,rgba(211,255,99,0.15),rgba(211,255,99,0.06))] p-4 text-black shadow-[0_24px_50px_rgba(198,255,77,0.12)]">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="rounded-full bg-black/12 px-2 py-1 text-[0.64rem] uppercase tracking-[0.2em]">Runner</span>
-              <FolderOpen className="h-4 w-4" />
+          <div className="px-3 pb-3">
+            <div className="rounded-[1.2rem] border border-[var(--forge-border)] bg-white p-4">
+              <div className="text-base font-medium text-[var(--forge-ink)]">Share Forge with a friend</div>
+              <div className="mt-1 text-sm text-[var(--forge-muted)]">Get 500 credits each</div>
             </div>
-            <div className="font-[family-name:var(--font-serif)] text-2xl tracking-[-0.03em]">Connected</div>
-            <p className="mt-2 text-sm leading-6 text-black/76">
-              Carson’s local runner is online, quota-aware, and ready for browser automation.
-            </p>
+            <div className="mt-4 flex items-center justify-between px-2 text-[var(--forge-muted)]">
+              <div className="flex items-center gap-3">
+                <CircleHelp className="h-4 w-4" />
+                <Settings2 className="h-4 w-4" />
+                <LayoutGrid className="h-4 w-4" />
+              </div>
+              <div className="text-sm">from forge</div>
+            </div>
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-6">
-          <header className="flex items-center justify-between rounded-[2rem] border border-white/8 bg-white/4 px-5 py-4 backdrop-blur-xl">
-            <div>
-              <div className="text-xs uppercase tracking-[0.28em] text-white/36">Forge operator</div>
-              <h1 className="font-[family-name:var(--font-serif)] text-[2.2rem] tracking-[-0.05em] text-white">{title}</h1>
-              <p className="mt-1 text-sm text-white/55">{subtitle}</p>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-2">
+              <div className="text-xl font-medium text-[var(--forge-ink)]">Forge 1.6 Lite</div>
+              <ChevronRight className="h-4 w-4 rotate-90 text-[var(--forge-muted)]" />
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/65">
+              <Link href="/usage" className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--forge-border)] bg-white text-[var(--forge-muted)]">
                 <Bell className="h-4 w-4" />
-              </button>
-              <Link href="/pricing" className="rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10">
-                Upgrade
               </Link>
-              <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/7 px-3 py-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/14 text-sm text-white">CW</div>
-                <div className="hidden sm:block">
-                  <div className="text-sm text-white">Carson Wesolowski</div>
-                  <div className="text-xs text-white/45">Forge Pro</div>
-                </div>
+              <Link href="/usage" className="rounded-full border border-[var(--forge-border)] bg-white px-4 py-2 text-sm text-[var(--forge-ink-soft)] transition hover:bg-[var(--forge-chip)]">
+                777
+              </Link>
+              <div className="flex items-center gap-3 rounded-full bg-white/0 px-0 py-0">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#c8e8ea] text-sm text-[var(--forge-ink)]">CW</div>
               </div>
             </div>
           </header>
-
-          {children}
+          <div className="px-6 pb-6">
+            {children}
+          </div>
         </div>
       </div>
     </div>
