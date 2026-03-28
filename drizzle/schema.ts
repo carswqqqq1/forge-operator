@@ -190,6 +190,21 @@ export const researchSessions = mysqlTable("research_sessions", {
 export type ResearchSession = typeof researchSessions.$inferSelect;
 export type InsertResearchSession = typeof researchSessions.$inferInsert;
 
+// ─── Connector States (OAuth tokens & credentials) ────────────────────
+export const connectorStates = mysqlTable("connector_states", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  connectorType: varchar("connectorType", { length: 64 }).notNull(),
+  accessToken: text("accessToken").notNull(),
+  refreshToken: text("refreshToken"),
+  expiresAt: int("expiresAt").notNull(),
+  state: text("state"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ConnectorState = typeof connectorStates.$inferSelect;
+export type InsertConnectorState = typeof connectorStates.$inferInsert;
+
 // ─── App Settings (Key-value config) ─────────────────────────────────
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),

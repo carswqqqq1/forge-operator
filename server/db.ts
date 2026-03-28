@@ -13,6 +13,7 @@ import {
   memories, InsertMemory,
   skills, InsertSkill,
   connectors, InsertConnector,
+  connectorStates, InsertConnectorState,
   scheduledTasks, InsertScheduledTask,
   researchSessions, InsertResearchSession,
   appSettings,
@@ -34,6 +35,7 @@ type LocalStore = {
   memories: Array<any>;
   usageEvents: Array<any>;
   connectors?: Array<any>;
+  connectorStates?: Array<any>;
   appState: {
     credits: number;
     selectedTier: "lite" | "core" | "max";
@@ -736,4 +738,150 @@ export async function getTeamMembers(teamId: number) {
   .from(teamMembers)
   .innerJoin(users, eq(teamMembers.userId, users.id))
   .where(eq(teamMembers.teamId, teamId));
+}
+
+// ─── Connector States ────────────────────────────────────────────────
+export async function saveConnectorState(
+  userId: number,
+  connectorType: string,
+  state: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt: number;
+    userId?: string;
+  }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    // Fallback to local store
+    const store = await readLocalStore();
+    if (!store.connectors) store.connectors = [];
+    const existing = store.connectors.findIndex(
+      (c) => c.userId === userId && c.connectorType === connectorType
+    );
+    if (existing >= 0) {
+      store.connectors[existing] = { userId, connectorType, ...state, updatedAt: new Date() };
+    } else {
+      store.connectors.push({ userId, connectorType, ...state, createdAt: new Date(), updatedAt: new Date() });
+    }
+    await writeLocalStore(store);
+    return;
+  }
+
+  const { connectorStates } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  const existing = await db
+    .select()
+    .from(connectorStates)
+    .where(
+      and(
+        eq(connectorStates.userId, userId),
+        eq(connectorStates.connectorType, connectorType)
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(connectorStates)
+      .set({
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken || null,
+        expiresAt: state.expiresAt,
+      })
+      .where(eq(connectorStates.id, existing[0].id));
+  } else {
+    await db.insert(connectorStates).values({
+      userId,
+      connectorType,
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken || undefined,
+      expiresAt: state.expiresAt,
+    });
+  }
+}
+
+export async function getConnectorState(
+  userId: number,
+  connectorType: string
+): Promise<any | null> {
+  const db = await getDb();
+  if (!db) {
+    // Fallback to local store
+    const store = await readLocalStore();
+    if (!store.connectors) return null;
+    return (
+      store.connectors.find(
+        (c) => c.userId === userId && c.connectorType === connectorType
+      ) || null
+    );
+  }
+
+  const { connectorStates } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  const result = await db
+    .select()
+    .from(connectorStates)
+    .where(
+      and(
+        eq(connectorStates.userId, userId),
+        eq(connectorStates.connectorType, connectorType)
+      )
+    )
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function deleteConnectorState(
+  userId: number,
+  connectorType: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    // Fallback to local store
+    const store = await readLocalStore();
+    if (!store.connectors) return;
+    store.connectors = store.connectors.filter(
+      (c) => !(c.userId === userId && c.connectorType === connectorType)
+    );
+    await writeLocalStore(store);
+    return;
+  }
+
+  const { connectorStates } = await import("../drizzle/schema");
+  const { eq, and } = await import("drizzle-orm");
+
+  await db
+    .delete(connectorStates)
+    .where(
+      and(
+        eq(connectorStates.userId, userId),
+        eq(connectorStates.connectorType, connectorType)
+      )
+    );
+}
+
+export async function listConnectorStates(userId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) {
+    // Fallback to local store
+    const store = await readLocalStore();
+    if (!store.connectors) return [];
+    return store.connectors
+      .filter((c) => c.userId === userId)
+      .map((c) => c.connectorType);
+  }
+
+  const { connectorStates } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+
+  const result = await db
+    .select({ connectorType: connectorStates.connectorType })
+    .from(connectorStates)
+    .where(eq(connectorStates.userId, userId));
+
+  return result.map((r) => r.connectorType);
 }

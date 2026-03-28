@@ -1,5 +1,5 @@
 import * as db from "../db";
-import * as ollama from "../ollama";
+
 import * as nvidia from "../nvidia";
 import { executeTool } from "../tools";
 
@@ -47,34 +47,24 @@ Provide a JSON response with this structure:
       { role: "user" as const, content: planPrompt },
     ];
 
-    let response;
     const nvidiaKey = process.env.NVIDIA_API_KEY;
-    const useNvidia = !!nvidiaKey && model.includes("/");
+    if (!nvidiaKey) throw new Error("NVIDIA API key not configured.");
 
-    if (useNvidia) {
-      const stream = await nvidia.nvidiaStreamChat(nvidiaKey, {
-        model,
-        messages: messages.map((m) => ({
-          role: m.role as "system" | "user" | "assistant",
-          content: m.content,
-        })),
-        temperature: 0.2,
-        top_p: 0.7,
-        max_tokens: 2048,
-      });
+    let response = "";
+    const stream = await nvidia.nvidiaStreamChat(nvidiaKey, {
+      model,
+      messages: messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: m.content,
+      })),
+      temperature: 0.2,
+      top_p: 0.7,
+      max_tokens: 2048,
+    });
 
-      let fullContent = "";
-      for await (const chunk of stream) {
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) fullContent += delta;
-      }
-      response = fullContent;
-    } else {
-      const chatResponse = await ollama.chatCompletion({
-        model,
-        messages,
-      });
-      response = chatResponse.message.content;
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) response += delta;
     }
 
     const jsonMatch = response.match(/\{[\s\S]*\}/);
@@ -177,29 +167,22 @@ Provide a concise result.`;
           ];
 
           const nvidiaKey = process.env.NVIDIA_API_KEY;
-          const useNvidia = !!nvidiaKey && model.includes("/");
+          if (!nvidiaKey) throw new Error("NVIDIA API key not configured.");
 
-          if (useNvidia) {
-            const stream = await nvidia.nvidiaStreamChat(nvidiaKey, {
-              model,
-              messages: messages.map((m) => ({
-                role: m.role as "system" | "user" | "assistant",
-                content: m.content,
-              })),
-              temperature: 0.2,
-              max_tokens: 1024,
-            });
+          let stepOutput = "";
+          const stream = await nvidia.nvidiaStreamChat(nvidiaKey, {
+            model,
+            messages: messages.map((m) => ({
+              role: m.role as "system" | "user" | "assistant",
+              content: m.content,
+            })),
+            temperature: 0.2,
+            max_tokens: 1024,
+          });
 
-            for await (const chunk of stream) {
-              const delta = chunk.choices?.[0]?.delta?.content;
-              if (delta) stepOutput += delta;
-            }
-          } else {
-            const chatResponse = await ollama.chatCompletion({
-              model,
-              messages,
-            });
-            stepOutput = chatResponse.message.content;
+          for await (const chunk of stream) {
+            const delta = chunk.choices?.[0]?.delta?.content;
+            if (delta) stepOutput += delta;
           }
 
           await db.updateAgentStep(stepResult.id, {

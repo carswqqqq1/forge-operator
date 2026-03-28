@@ -258,18 +258,19 @@ export default function Home({ conversationId }: { conversationId?: string }) {
         systemPrompt: conversation?.systemPrompt || undefined,
       };
 
-      const res = await fetch("/api/ollama/stream", {
+      const response = await fetch("/api/nvidia/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText || "Failed to connect to streaming endpoint"}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText || "Failed to connect to streaming endpoint"}`);
       }
 
-      const reader = res.body!.getReader();
+      const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let fullContent = "";

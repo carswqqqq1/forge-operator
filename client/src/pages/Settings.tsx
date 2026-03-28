@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Settings as SettingsIcon, Server, Cpu, HardDrive, RefreshCw,
+  Settings as SettingsIcon, Cpu, HardDrive, RefreshCw,
   Globe, Key, Monitor, Unplug, Zap, Shield, Chrome, Cookie,
   Eye, EyeOff, CheckCircle2, XCircle, Loader2
 } from "lucide-react";
@@ -17,9 +17,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export default function Settings() {
-  const { data: health, refetch: refetchHealth } = trpc.ollama.health.useQuery(undefined, { refetchInterval: 10000 });
-  const { data: models, refetch: refetchModels } = trpc.ollama.models.useQuery();
-  const { data: ollamaUrl } = trpc.ollama.url.useQuery();
+
   const { data: claudeStatus, refetch: refetchClaude } = trpc.claude.status.useQuery(undefined, { refetchInterval: 5000 });
   const { data: claudeModels } = trpc.claude.models.useQuery();
 
@@ -72,34 +70,7 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground mt-1">Configure inference providers and system preferences</p>
         </div>
 
-        {/* ─── Provider Status Overview ─── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="bg-card border-border/50">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                    <Server className="h-5 w-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Ollama</p>
-                    <p className="text-[10px] text-muted-foreground">Local inference</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {health?.ok ? (
-                    <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px] h-5">
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> Online
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="text-[10px] h-5">
-                      <XCircle className="h-3 w-3 mr-1" /> Offline
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
 
           <Card className="bg-card border-border/50">
             <CardContent className="pt-4 pb-4">
@@ -129,7 +100,6 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-        </div>
 
         {/* ─── Claude Subscription Integration ─── */}
         <Card className="bg-card border-border/50">
@@ -372,74 +342,9 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* ─── Ollama Connection ─── */}
-        <Card className="bg-card border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Server className="h-4 w-4 text-orange-500" />
-              Ollama Connection
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-accent/30 border border-border/30">
-              <div className="flex items-center gap-3">
-                <div className={`h-3 w-3 rounded-full ${health?.ok ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                <div>
-                  <p className="text-sm font-medium">{health?.ok ? "Connected" : "Disconnected"}</p>
-                  <p className="text-[10px] text-muted-foreground">{ollamaUrl || "http://localhost:11434"}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {health?.ok && <Badge variant="outline" className="text-[10px] h-5">v{health.version}</Badge>}
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { refetchHealth(); refetchModels(); toast.success("Refreshed"); }}>
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
 
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>To connect, ensure Ollama is running locally:</p>
-              <pre className="bg-[oklch(0.12_0.005_260)] rounded p-2 font-mono text-[11px]">
-                {`# Install Ollama (macOS)\nbrew install ollama\n\n# Start the server\nollama serve\n\n# Pull a model\nollama pull llama3.2`}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* ─── Installed Models ─── */}
-        <Card className="bg-card border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-muted-foreground" />
-              Installed Ollama Models
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {models?.length ? models.map(m => (
-              <div key={m.name} className="flex items-center justify-between p-3 rounded-lg bg-accent/30 border border-border/30">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Cpu className="h-4 w-4 text-primary shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {m.details?.family || "Unknown"} · {m.details?.parameter_size || ""} · {m.details?.quantization_level || ""}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right">
-                    <p className="text-xs font-mono">{formatSize(m.size)}</p>
-                    <p className="text-[10px] text-muted-foreground">{new Date(m.modified_at).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </div>
-            )) : (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                {health?.ok ? "No models installed. Run `ollama pull llama3.2` to get started." : "Connect to Ollama to see models"}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+
 
         {/* ─── System Recommendations ─── */}
         <Card className="bg-card border-border/50">
@@ -453,11 +358,10 @@ export default function Settings() {
             <div className="text-xs text-muted-foreground space-y-2">
               <p>Optimized for <strong className="text-foreground">Mac mini with Apple Silicon, 16GB RAM</strong>:</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li><strong className="text-foreground">qwen3:8b</strong> (8B local model) — Recommended default</li>
-                <li><strong className="text-foreground">7B models</strong> (llama3.2, mistral) — Fast, fits in 16GB RAM</li>
-                <li><strong className="text-foreground">13B models</strong> (codellama:13b) — Good balance, may use swap</li>
-                <li><strong className="text-foreground">3B models</strong> (llama3.2:3b, phi3:mini) — Ultra-fast for simple tasks</li>
-                <li>Avoid 70B+ models on 16GB — will be extremely slow</li>
+                <li><strong className="text-foreground">Llama 3.1 8B Instruct</strong> — Good balance of speed and quality</li>
+                <li><strong className="text-foreground">Mistral 7B Instruct v0.3</strong> — Fast, fits in 16GB RAM</li>
+                <li><strong className="text-foreground">Mixtral 8x7B Instruct</strong> — More capable, may use more resources</li>
+                <li><strong className="text-foreground">Nemotron 4 340B Instruct</strong> — NVIDIA's most capable model</li>
               </ul>
               <Separator className="opacity-30 my-3" />
               <p>For <strong className="text-foreground">Claude subscription</strong> (cloud fallback):</p>

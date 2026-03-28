@@ -6,12 +6,13 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerConnectorRoutes } from "../routers/connectors";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import * as claude from "../claude";
-import * as ollama from "../ollama";
+
 import * as nvidia from "../nvidia";
 import { AVAILABLE_TOOLS, executeTool } from "../tools";
 import * as db from "../db";
@@ -85,6 +86,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // Connector routes for Google Drive and Gmail
+  registerConnectorRoutes(app);
 
   // ─── Claude SSE Streaming Endpoint (Protected) ─────────────────────────────
   app.post("/api/claude/stream", requireAuth, async (req, res) => {
@@ -132,8 +136,8 @@ async function startServer() {
     res.end();
   });
 
-  // ─── Ollama SSE Streaming Endpoint (Protected) ─────────────────────────────
-  app.post("/api/ollama/stream", requireAuth, async (req, res) => {
+  // ─── NVIDIA SSE Streaming Endpoint (Protected) ─────────────────────────────
+  app.post("/api/nvidia/stream", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -152,10 +156,10 @@ async function startServer() {
       }
     }
 
-    const ollamaMessages: ollama.OllamaMessage[] = [];
+    const nvidiaMessages: nvidia.NVIDIAMessage[] = [];
 
     if (systemPrompt) {
-      ollamaMessages.push({ role: "system", content: systemPrompt });
+      nvidiaMessages.push({ role: "system", content: systemPrompt });
     }
 
     // Add memory context
@@ -165,151 +169,59 @@ async function startServer() {
         const memories = await db.recallMemory(user.id, lastUserMsg.content?.slice(0, 100));
         if (memories.length > 0) {
           const memCtx = memories.map((m: any) => `[${m.category}] ${m.key}: ${m.value}`).join("\n");
-          ollamaMessages.push({ role: "system", content: `Relevant memories:\n${memCtx}` });
+          nvidiaMessages.push({ role: "system", content: `Relevant memories:\n${memCtx}` });
         }
       }
     } catch {}
 
     for (const msg of messages) {
       if (["system", "user", "assistant"].includes(msg.role)) {
-        ollamaMessages.push({ role: msg.role, content: msg.content });
+        nvidiaMessages.push({ role: msg.role, content: msg.content });
       }
     }
 
     try {
       let fullContent = "";
       let evalCount = 0;
-      let evalDuration = 0;
-      const ollamaHealth = await ollama.checkOllamaHealth();
-      const localModels = ollamaHealth.ok ? await ollama.listModels() : [];
       const nvidiaKey = process.env.NVIDIA_API_KEY;
-      const explicitNvidiaModel = typeof model === "string" && model.includes("/");
-      const missingLocalModel =
-        !!model &&
-        !explicitNvidiaModel &&
-        ollamaHealth.ok &&
-        !localModels.some((localModel) => localModel.name === model);
-      const useNvidiaFallback =
-        (!!nvidiaKey && explicitNvidiaModel) ||
-        (!!nvidiaKey && missingLocalModel) ||
-        (!ollamaHealth.ok && !!nvidiaKey);
+      if (!nvidiaKey) throw new Error("NVIDIA API key not configured.");
 
-      if (useNvidiaFallback) {
-        const nvidiaMessages = [
-          {
-            role: "system" as const,
-            content:
-              "You are Forge, a helpful AI operator. Reply in clear natural English by default unless the user explicitly asks for another language.",
-          },
-          ...ollamaMessages
-          .filter((message) => message.role !== "tool")
-          .map((message) => ({ role: message.role as "system" | "user" | "assistant", content: message.content })),
-        ];
-        const nvidiaModel =
-          process.env.NVIDIA_MODEL_REASONING ||
-          process.env.NVIDIA_MODEL_DEFAULT ||
-          "meta/llama-3.1-70b-instruct";
+      const nvidiaModel =
+        model ||
+        process.env.NVIDIA_MODEL_REASONING ||
+        process.env.NVIDIA_MODEL_DEFAULT ||
+        "meta/llama-3.1-70b-instruct";
 
-        for await (const chunk of nvidia.nvidiaStreamChat(nvidiaKey!, {
-          model: nvidiaModel,
-          messages: nvidiaMessages,
-          temperature: 0.2,
-          top_p: 0.7,
-          max_tokens: 4096,
-        })) {
-          const delta = chunk.choices?.[0]?.delta?.content;
-          if (!delta) continue;
-          fullContent += delta;
-          evalCount += 1;
-          res.write(`data: ${JSON.stringify({
-            type: "text",
-            content: delta,
-            model: chunk.model,
-          })}\n\n`);
-        }
-
+      for await (const chunk of nvidia.nvidiaStreamChat(nvidiaKey!, {
+        model: nvidiaModel,
+        messages: nvidiaMessages.filter((message) => message.role !== "tool").map((message) => ({ role: message.role as "system" | "user" | "assistant", content: message.content })),
+        temperature: 0.2,
+        top_p: 0.7,
+        max_tokens: 4096,
+      })) {
+        const delta = chunk.choices?.[0]?.delta?.content;
+        if (!delta) continue;
+        fullContent += delta;
+        evalCount += 1;
         res.write(`data: ${JSON.stringify({
-          type: "done",
-          content: "",
-          tokenCount: evalCount,
-          tokensPerSecond: null,
-          model: nvidiaModel,
+          type: "text",
+          content: delta,
+          model: chunk.model,
         })}\n\n`);
-      } else {
-        const stream = await ollama.chatCompletionStream({
-          model: model || "llama3",
-          messages: ollamaMessages,
-          stream: true,
-          tools: AVAILABLE_TOOLS,
-        });
-
-        const reader = stream.getReader();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = value as ollama.OllamaStreamChunk;
-          if (chunk.message?.content) {
-            fullContent += chunk.message.content;
-            res.write(`data: ${JSON.stringify({
-              type: "text",
-              content: chunk.message.content,
-              model: chunk.model,
-            })}\n\n`);
-          }
-
-          if (chunk.message?.tool_calls) {
-            for (const tc of chunk.message.tool_calls) {
-              res.write(`data: ${JSON.stringify({
-                type: "tool_use",
-                content: JSON.stringify({ name: tc.function.name, args: tc.function.arguments }),
-              })}\n\n`);
-
-              const result = await executeTool(tc.function.name, tc.function.arguments as Record<string, unknown>, {
-                storeMemory: (category, key, value, source) => db.storeMemory(user.id, category, key, value, source),
-                recallMemory: (query) => db.recallMemory(user.id, query),
-              });
-
-              res.write(`data: ${JSON.stringify({
-                type: "tool_result",
-                content: result.output,
-              })}\n\n`);
-
-              await db.logToolExecution({
-                userId: user.id,
-                conversationId: conversationId || null,
-                toolName: tc.function.name,
-                toolInput: JSON.stringify(tc.function.arguments),
-                toolOutput: result.output,
-                status: result.success ? "success" : "error",
-                durationMs: result.durationMs,
-              });
-            }
-          }
-
-          if (chunk.eval_count) evalCount = chunk.eval_count;
-          if (chunk.eval_duration) evalDuration = chunk.eval_duration;
-
-          if (chunk.done) {
-            const tps = evalDuration > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
-            res.write(`data: ${JSON.stringify({
-              type: "done",
-              content: "",
-              tokenCount: evalCount,
-              tokensPerSecond: tps,
-              model: chunk.model,
-            })}\n\n`);
-          }
-        }
       }
+
+      res.write(`data: ${JSON.stringify({
+        type: "done",
+        content: "",
+        tokenCount: evalCount,
+        tokensPerSecond: null,
+        model: nvidiaModel,
+      })}\n\n`);
 
       // Save to DB
       if (conversationId && fullContent) {
-        const tps = evalDuration > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
-        const finalModel = useNvidiaFallback
-          ? (process.env.NVIDIA_MODEL_REASONING || process.env.NVIDIA_MODEL_DEFAULT || "meta/llama-3.1-70b-instruct")
-          : (model || "llama3");
+        const tps = evalCount > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
+        const finalModel = nvidiaModel;
         await db.addMessage({
           userId: user.id,
           conversationId,
@@ -317,7 +229,7 @@ async function startServer() {
           content: fullContent,
           model: finalModel,
           tokenCount: evalCount,
-          tokensPerSecond: useNvidiaFallback ? null : tps,
+          tokensPerSecond: null,
         });
 
         const tier = getTierForModel(finalModel);

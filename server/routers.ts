@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
-import * as ollama from "./ollama";
+
 import * as claude from "./claude";
 import * as nvidia from "./nvidia";
 import { executeTool, AVAILABLE_TOOLS } from "./tools";
@@ -44,12 +44,7 @@ export const appRouter = router({
       }),
   }),
 
-  ollama: router({
-    health: publicProcedure.query(async () => ollama.checkOllamaHealth()),
-    models: publicProcedure.query(async () => ollama.listModels()),
-    modelDetails: publicProcedure.input(z.object({ name: z.string() })).query(async ({ input }) => ollama.showModel(input.name)),
-    url: publicProcedure.query(() => ollama.getOllamaUrl()),
-  }),
+
 
   nvidia: router({
     models: publicProcedure.query(async () => nvidia.NVIDIA_MODELS),
@@ -93,7 +88,7 @@ export const appRouter = router({
         return db.createConversation(ctx.user!.id, {
           userId: ctx.user!.id,
           title: input.title || "New Conversation",
-          model: input.model || "llama3",
+          model: input.model || "meta/llama-3.1-8b-instruct",
           systemPrompt: input.systemPrompt || null,
         });
       }),
@@ -174,7 +169,7 @@ export const appRouter = router({
           description: input.description || null,
           cronExpression: input.cronExpression || null,
           prompt: input.prompt,
-          model: input.model || "llama3",
+          model: input.model || "meta/llama-3.1-8b-instruct",
           isActive: true,
         });
       }),
