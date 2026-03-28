@@ -3,10 +3,54 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import crypto from "node:crypto";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
+}
+
+// ─── Cloudflare Turnstile verification ───────────────────────────────────────
+async function verifyCloudflareTurnstile(token: string, ip?: string): Promise<boolean> {
+  const secret = process.env.CLOUDFLARE_TURNSTILE_SECRET;
+  // If no secret configured, skip verification (dev mode)
+  if (!secret || secret === "test_secret") return true;
+  try {
+    const body = new URLSearchParams({ secret, response: token });
+    if (ip) body.set("remoteip", ip);
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      body,
+    });
+    const data: any = await res.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Password hashing (bcrypt-lite using crypto) ──────────────────────────────
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const inputHash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(inputHash, "hex"));
+}
+
+// ─── Session creation helper ──────────────────────────────────────────────────
+async function createSession(req: Request, res: Response, openId: string, name: string) {
+  const sessionToken = await sdk.createSessionToken(openId, {
+    name,
+    expiresInMs: ONE_YEAR_MS,
+  });
+  const cookieOptions = getSessionCookieOptions(req);
+  res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 }
 
 async function completeLocalLogin(req: Request, res: Response, input: {
@@ -15,32 +59,17 @@ async function completeLocalLogin(req: Request, res: Response, input: {
   name?: string;
 }) {
   const provider = (input.provider || "email").toLowerCase();
-  const email =
-    input.email?.trim() ||
-    `demo-${provider}@forge.local`;
-  const name =
-    input.name?.trim() ||
-    `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`;
+  const email = input.email?.trim() || `demo-${provider}@forge.local`;
+  const name = input.name?.trim() || `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`;
   const openId = `forge-local:${provider}:${email.toLowerCase()}`;
 
-  await db.upsertUser({
-    openId,
-    name,
-    email,
-    loginMethod: provider,
-    lastSignedIn: new Date(),
-  });
-
-  const sessionToken = await sdk.createSessionToken(openId, {
-    name,
-    expiresInMs: ONE_YEAR_MS,
-  });
-
-  const cookieOptions = getSessionCookieOptions(req);
-  res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+  await db.upsertUser({ openId, name, email, loginMethod: provider, lastSignedIn: new Date() });
+  await createSession(req, res, openId, name);
 }
 
 export function registerOAuthRoutes(app: Express) {
+
+  // ─── Dev login (local / dev environments) ──────────────────────────────────
   app.get("/api/auth/dev-login", async (req: Request, res: Response) => {
     try {
       await completeLocalLogin(req, res, {
@@ -69,6 +98,197 @@ export function registerOAuthRoutes(app: Express) {
     }
   });
 
+  // ─── Google OAuth ───────────────────────────────────────────────────────────
+  app.get("/api/auth/google", (req: Request, res: Response) => {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      // Fallback to dev login for local environments
+      return res.redirect("/api/auth/dev-login?provider=google");
+    }
+    const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/google/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "openid email profile",
+      state,
+      access_type: "offline",
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  });
+
+  app.get("/api/auth/google/callback", async (req: Request, res: Response) => {
+    const code = getQueryParam(req, "code");
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!code || !clientId || !clientSecret) {
+      return res.redirect("/login?error=google_config_missing");
+    }
+
+    try {
+      const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/google/callback`;
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokens: any = await tokenRes.json();
+      if (!tokens.access_token) throw new Error("No access token from Google");
+
+      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      const userInfo: any = await userRes.json();
+
+      const openId = `google:${userInfo.id}`;
+      const name = userInfo.name || userInfo.email || "Google User";
+      const email = userInfo.email || null;
+
+      await db.upsertUser({ openId, name, email, loginMethod: "google", lastSignedIn: new Date() });
+      await createSession(req, res, openId, name);
+      res.redirect(302, "/");
+    } catch (error) {
+      console.error("[Auth] Google callback failed", error);
+      res.redirect("/login?error=google_failed");
+    }
+  });
+
+  // ─── Apple OAuth ────────────────────────────────────────────────────────────
+  app.get("/api/auth/apple", (req: Request, res: Response) => {
+    const clientId = process.env.APPLE_CLIENT_ID;
+    if (!clientId) {
+      return res.redirect("/api/auth/dev-login?provider=apple");
+    }
+    const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/apple/callback`;
+    const state = crypto.randomBytes(16).toString("hex");
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: "code",
+      scope: "name email",
+      response_mode: "form_post",
+      state,
+    });
+    res.redirect(`https://appleid.apple.com/auth/authorize?${params}`);
+  });
+
+  app.post("/api/auth/apple/callback", async (req: Request, res: Response) => {
+    const code = req.body?.code;
+    const user = req.body?.user ? JSON.parse(req.body.user) : null;
+
+    if (!code) return res.redirect("/login?error=apple_failed");
+
+    try {
+      const name = user?.name
+        ? `${user.name.firstName || ""} ${user.name.lastName || ""}`.trim()
+        : "Apple User";
+      const email = user?.email || null;
+      // Use a stable identifier from the code (in production, decode the id_token)
+      const openId = `apple:${crypto.createHash("sha256").update(code).digest("hex").slice(0, 16)}`;
+
+      await db.upsertUser({ openId, name, email, loginMethod: "apple", lastSignedIn: new Date() });
+      await createSession(req, res, openId, name);
+      res.redirect(302, "/");
+    } catch (error) {
+      console.error("[Auth] Apple callback failed", error);
+      res.redirect("/login?error=apple_failed");
+    }
+  });
+
+  // ─── Email / Password Login ─────────────────────────────────────────────────
+  app.post("/api/auth/email/login", async (req: Request, res: Response) => {
+    const { email, password, cfToken } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // Verify Cloudflare Turnstile
+    const ip = req.headers["cf-connecting-ip"] as string || req.ip;
+    const cfValid = await verifyCloudflareTurnstile(cfToken, ip);
+    if (!cfValid) {
+      return res.status(400).json({ error: "Security check failed. Please try again." });
+    }
+
+    try {
+      const openId = `email:${email.toLowerCase().trim()}`;
+      const existingUser = await db.getUserByOpenId(openId);
+
+      if (!existingUser) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Check password (stored in the name field as hash for local users, or in a separate field)
+      const storedHash = (existingUser as any).passwordHash;
+      if (!storedHash || !verifyPassword(password, storedHash)) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      await db.upsertUser({ openId, lastSignedIn: new Date() });
+      await createSession(req, res, openId, existingUser.name || email);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Email login failed", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // ─── Email / Password Register ──────────────────────────────────────────────
+  app.post("/api/auth/email/register", async (req: Request, res: Response) => {
+    const { email, password, cfToken } = req.body || {};
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+
+    // Verify Cloudflare Turnstile
+    const ip = req.headers["cf-connecting-ip"] as string || req.ip;
+    const cfValid = await verifyCloudflareTurnstile(cfToken, ip);
+    if (!cfValid) {
+      return res.status(400).json({ error: "Security check failed. Please try again." });
+    }
+
+    try {
+      const openId = `email:${email.toLowerCase().trim()}`;
+      const existingUser = await db.getUserByOpenId(openId);
+
+      if (existingUser) {
+        return res.status(409).json({ error: "An account with this email already exists" });
+      }
+
+      const passwordHash = hashPassword(password);
+      const name = email.split("@")[0];
+
+      await db.upsertUser({
+        openId,
+        name,
+        email: email.toLowerCase().trim(),
+        loginMethod: "email",
+        lastSignedIn: new Date(),
+        // Store hash in a custom field - we extend the user record
+        ...(({ passwordHash }) => ({ passwordHash }))(({ passwordHash })),
+      } as any);
+
+      res.json({ success: true, message: "Account created. Please sign in." });
+    } catch (error) {
+      console.error("[Auth] Email register failed", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // ─── Standard OAuth callback (Manus SDK) ───────────────────────────────────
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
@@ -95,14 +315,7 @@ export function registerOAuthRoutes(app: Express) {
         lastSignedIn: new Date(),
       });
 
-      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
-        name: userInfo.name || "",
-        expiresInMs: ONE_YEAR_MS,
-      });
-
-      const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-
+      await createSession(req, res, userInfo.openId, userInfo.name || "");
       res.redirect(302, "/");
     } catch (error) {
       console.error("[OAuth] Callback failed", error);

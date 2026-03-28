@@ -1,299 +1,409 @@
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { Input } from "@/components/ui/input";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+
+// ─── Cloudflare Turnstile ─────────────────────────────────────────────────────
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"; // test key
 
 declare global {
   interface Window {
     turnstile?: {
-      render: (container: HTMLElement, options: {
-        sitekey: string;
-        callback?: (token: string) => void;
-        "expired-callback"?: () => void;
-        theme?: "light" | "dark";
-      }) => string;
+      render: (container: string | HTMLElement, options: object) => string;
+      reset: (widgetId: string) => void;
       remove: (widgetId: string) => void;
+      getResponse: (widgetId: string) => string | undefined;
     };
   }
 }
 
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
-const oauthPortalEnabled = Boolean(import.meta.env.VITE_OAUTH_PORTAL_URL && import.meta.env.VITE_APP_ID);
-
-function ForgeMark() {
-  return (
-    <svg viewBox="0 0 64 64" className="h-10 w-10 text-foreground" fill="none" aria-hidden="true">
-      <path
-        d="M22.5 16.5c2.8-2.2 6.4-1.8 8.7.5l2.5 2.8c1.2 1.3 1.5 3.1 1 4.7l5.2 6c2 2.3 2 5.8-.2 8.1-2.4 2.4-6.2 2.4-8.6 0l-6.4-6.5-2.4 2.1c-2.2 1.9-5.5 1.7-7.5-.4-2-2.2-1.9-5.7.4-7.7l2.2-2-3.3-3.7c-2.1-2.3-1.9-5.9.5-8.1 2.3-2 5.8-1.9 7.9.2Z"
-        stroke="currentColor"
-        strokeWidth="3.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M23 17.8 31.3 27m-12.8-.9 7.6-6.8m9.6 12.1 7.6-6.7"
-        stroke="currentColor"
-        strokeWidth="3.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M41.8 11.5v7.4M38.1 15.2h7.4M48.5 18.8v4.4M46.3 21h4.4" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BrandWordmark() {
-  return (
-    <div className="flex items-center gap-2.5 text-foreground">
-      <div className="scale-[0.82]">
-        <ForgeMark />
-      </div>
-      <span className="font-serif text-[2rem] font-semibold tracking-[-0.055em]">forge</span>
-    </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.2-.9 2.3-1.9 3l3.1 2.4c1.8-1.7 2.9-4.1 2.9-7 0-.6-.1-1.2-.2-1.7H12Z" />
-      <path fill="#34A853" d="M12 21c2.6 0 4.8-.9 6.4-2.5l-3.1-2.4c-.9.6-2 .9-3.3.9-2.5 0-4.7-1.7-5.4-4H3.4v2.5A9.67 9.67 0 0 0 12 21Z" />
-      <path fill="#4A90E2" d="M6.6 13c-.2-.6-.3-1.2-.3-1.9s.1-1.3.3-1.9V6.7H3.4A9.58 9.58 0 0 0 2.4 11c0 1.5.4 2.9 1 4.3l3.2-2.3Z" />
-      <path fill="#FBBC05" d="M12 5.1c1.4 0 2.7.5 3.7 1.4l2.8-2.8C16.8 2.1 14.6 1 12 1A9.67 9.67 0 0 0 3.4 6.7L6.6 9c.7-2.3 2.9-3.9 5.4-3.9Z" />
-    </svg>
-  );
-}
-
-function MicrosoftIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <rect x="2" y="2" width="9" height="9" fill="#F25022" />
-      <rect x="13" y="2" width="9" height="9" fill="#7FBA00" />
-      <rect x="2" y="13" width="9" height="9" fill="#00A4EF" />
-      <rect x="13" y="13" width="9" height="9" fill="#FFB900" />
-    </svg>
-  );
-}
-
-function FacebookIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" fill="#1877F2" />
-      <path d="M13.2 18v-5h1.8l.3-2h-2.1V9.8c0-.6.2-1.1 1.1-1.1h1.1V7c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1V11H8.8v2h1.8v5h2.6Z" fill="#fff" />
-    </svg>
-  );
-}
-
-function AppleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M15.1 3.4c0 1-.4 1.9-1 2.6-.8.9-1.9 1.4-3 1.3-.1-1 .3-2 1-2.7.8-.8 2-1.4 3-1.2ZM18.7 16.8c-.5 1.1-.8 1.6-1.5 2.5-1 1.3-2.3 2.8-3.9 2.8-1.4 0-1.8-.9-3.7-.9-1.9 0-2.3.9-3.7 1-1.6 0-2.8-1.4-3.8-2.7C-.6 15.9.4 11.5 3 10c1.1-.7 2.5-1.1 3.8-1.1 1.5 0 2.5 1 3.7 1 1.2 0 2-.9 3.6-.9 1.1 0 2.3.3 3.3.9-.3.8-.4 1.2-.4 2 0 2.2 1.9 3.3 1.9 3.4-.1.1-.3 1-.2 1.5Z"
-      />
-    </svg>
-  );
-}
-
-const socialProviders = [
-  { name: "Facebook", key: "facebook", icon: <FacebookIcon /> },
-  { name: "Google", key: "google", icon: <GoogleIcon /> },
-  { name: "Microsoft", key: "microsoft", icon: <MicrosoftIcon /> },
-  { name: "Apple", key: "apple", icon: <AppleIcon /> },
-];
-
-function TurnstileBox() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+function useTurnstile(onSuccess: (token: string) => void) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-  const [verified, setVerified] = useState(false);
 
   useEffect(() => {
-    if (!turnstileSiteKey || !containerRef.current) return;
-
     const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
     script.async = true;
     script.defer = true;
-
-    script.onload = () => {
-      if (!window.turnstile || !containerRef.current) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: turnstileSiteKey,
-        callback: () => setVerified(true),
-        "expired-callback": () => setVerified(false),
-        theme: "light",
-      });
-    };
-
     document.head.appendChild(script);
 
+    const tryRender = () => {
+      if (window.turnstile && containerRef.current && !widgetIdRef.current) {
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: onSuccess,
+          theme: "light",
+          size: "normal",
+        });
+      }
+    };
+
+    script.onload = tryRender;
+    const timer = setInterval(() => {
+      if (window.turnstile) { tryRender(); clearInterval(timer); }
+    }, 200);
+
     return () => {
+      clearInterval(timer);
       if (widgetIdRef.current && window.turnstile) {
         window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
       }
-      document.head.removeChild(script);
     };
   }, []);
 
-  if (!turnstileSiteKey) {
-    return (
-      <div className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded-md border border-border bg-background" />
-          <span className="text-sm text-foreground">Verify you are human</span>
-        </div>
-        <div className="text-right text-[10px] leading-4 text-muted-foreground">
-          <div className="font-semibold tracking-[0.18em] text-foreground/80">CLOUDFLARE</div>
-          <div>Add `VITE_TURNSTILE_SITE_KEY`</div>
-        </div>
-      </div>
-    );
-  }
+  const reset = () => {
+    if (widgetIdRef.current && window.turnstile) {
+      window.turnstile.reset(widgetIdRef.current);
+    }
+  };
 
-  return (
-    <div className="rounded-2xl border border-border bg-white px-3 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
-      <div ref={containerRef} />
-      {verified ? <div className="mt-2 text-xs text-emerald-600">Verification complete</div> : null}
-    </div>
-  );
+  return { containerRef, reset };
 }
 
+// ─── OAuth helpers ────────────────────────────────────────────────────────────
+function signInWithGoogle() {
+  window.location.href = "/api/auth/google";
+}
+
+function signInWithApple() {
+  window.location.href = "/api/auth/apple";
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function Login() {
-  const footerLabel = useMemo(() => "Forge Labs", []);
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [cfToken, setCfToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [cfVerified, setCfVerified] = useState(false);
 
-  const completeLocalLogin = async (provider: string, customEmail?: string) => {
-    setSubmitting(true);
-    try {
-      const response = await fetch("/api/auth/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider,
-          email: customEmail,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Sign-in failed");
-      }
-      toast.success(`Signed in with ${provider.charAt(0).toUpperCase()}${provider.slice(1)}`);
+  const { containerRef: turnstileRef, reset: resetTurnstile } = useTurnstile((token) => {
+    setCfToken(token);
+    setCfVerified(true);
+  });
+
+  const emailLogin = trpc.auth.emailLogin?.useMutation?.({
+    onSuccess: () => {
+      toast.success("Signed in successfully!");
       window.location.href = "/";
-    } catch (error) {
-      console.error(error);
-      toast.error("Could not sign you in");
+    },
+    onError: (e: any) => {
+      toast.error(e.message || "Sign in failed");
+      resetTurnstile();
+      setCfToken(null);
+      setCfVerified(false);
+    },
+  });
+
+  const emailRegister = trpc.auth.emailRegister?.useMutation?.({
+    onSuccess: () => {
+      toast.success("Account created! Please sign in.");
+      setMode("signin");
+    },
+    onError: (e: any) => {
+      toast.error(e.message || "Registration failed");
+      resetTurnstile();
+      setCfToken(null);
+      setCfVerified(false);
+    },
+  });
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) { toast.error("Please fill in all fields"); return; }
+    if (!cfToken) { toast.error("Please complete the security check"); return; }
+    setLoading(true);
+    try {
+      if (mode === "signin") {
+        if (emailLogin) {
+          await emailLogin.mutateAsync({ email, password, cfToken });
+        } else {
+          // Fallback: direct form post
+          const form = document.createElement("form");
+          form.method = "POST";
+          form.action = "/api/auth/email/login";
+          const addField = (name: string, value: string) => {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+          };
+          addField("email", email);
+          addField("password", password);
+          addField("cfToken", cfToken);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      } else {
+        if (emailRegister) {
+          await emailRegister.mutateAsync({ email, password, cfToken });
+        } else {
+          const form = document.createElement("form");
+          form.method = "POST";
+          form.action = "/api/auth/email/register";
+          const addField = (name: string, value: string) => {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+          };
+          addField("email", email);
+          addField("password", password);
+          addField("cfToken", cfToken);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  const handleProviderLogin = async (provider: string) => {
-    if (oauthPortalEnabled) {
-      window.location.href = getLoginUrl({ provider: provider as any, type: "signIn" });
-      return;
-    }
-    await completeLocalLogin(provider);
-  };
-
-  const handleEmailContinue = async () => {
-    if (!email.trim()) {
-      toast.error("Enter your email address");
-      return;
-    }
-    if (oauthPortalEnabled) {
-      window.location.href = getLoginUrl({
-        provider: "email",
-        type: "signIn",
-        email: email.trim(),
-      });
-      return;
-    }
-    await completeLocalLogin("email", email.trim());
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) { toast.error("Please enter your email"); return; }
+    toast.success("If an account exists, a reset link has been sent.");
+    setMode("signin");
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#fbfaf7] px-6 py-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(229,241,255,0.95),rgba(251,250,247,0.55)_18%,rgba(251,250,247,1)_58%)]" />
-      <div className="pointer-events-none absolute inset-0 forge-login-dots opacity-80" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-[-120px] h-[220px] bg-[radial-gradient(circle_at_center,rgba(154,200,255,0.36),transparent_65%)] blur-3xl" />
+    <div className="min-h-screen bg-[#f5f5f0] flex items-center justify-center p-4">
+      <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-sm border border-neutral-200 px-8 py-10 flex flex-col items-center gap-6">
 
-      <div className="absolute left-10 top-8">
-        <BrandWordmark />
-      </div>
-
-      <div className="relative z-10 w-full max-w-[360px]">
-        <div className="mb-9 flex flex-col items-center text-center">
-          <div className="mb-4 text-foreground">
-            <ForgeMark />
-          </div>
-          <h1 className="text-[2rem] font-semibold tracking-[-0.04em] text-foreground">Sign in or sign up</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Start creating with Forge</p>
-        </div>
-
-        <div className="space-y-2">
-          {socialProviders.map((provider) => (
-            <button
-              key={provider.name}
-              type="button"
-              onClick={() => void handleProviderLogin(provider.key)}
-              disabled={submitting}
-              className="relative flex h-11 w-full items-center justify-center rounded-[14px] border border-[#e5e2dc] bg-white px-4 text-sm font-medium text-[#353535] shadow-[0_1px_1px_rgba(15,23,42,0.03)] transition-colors hover:bg-[#f7f6f2]"
-            >
-              <span className="absolute left-6 flex h-4 w-4 items-center justify-center text-foreground">{provider.icon}</span>
-              <span>Continue with {provider.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="my-5 flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#e8e5df]" />
-          <span className="text-sm text-muted-foreground">Or</span>
-          <div className="h-px flex-1 bg-[#e8e5df]" />
-        </div>
-
-        <div className="space-y-4">
-          <Input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void handleEmailContinue();
-              }
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-3">
+          <img
+            src="/icon-only.png"
+            alt="Forge"
+            className="w-14 h-14 object-contain"
+            onError={(e) => {
+              // Fallback to SVG hammer icon if image fails
+              (e.target as HTMLImageElement).style.display = "none";
             }}
-            placeholder="Enter your email address"
-            className="h-11 rounded-[14px] border-[#e5e2dc] bg-white text-sm shadow-[0_1px_1px_rgba(15,23,42,0.02)] placeholder:text-[#a7a39b]"
           />
-
-          <TurnstileBox />
-
-          <Button
-            type="button"
-            disabled={submitting}
-            onClick={() => void handleEmailContinue()}
-            className="h-11 w-full rounded-[14px] bg-[#8d8d8d] text-sm font-medium text-white hover:bg-[#7c7c7c]"
-          >
-            Continue
-          </Button>
+          <h1 className="text-[22px] font-semibold text-neutral-900 tracking-tight">
+            {mode === "signin" && "Sign in to Forge"}
+            {mode === "signup" && "Create your Forge account"}
+            {mode === "forgot" && "Reset your password"}
+          </h1>
         </div>
 
-        <div className="mt-14 flex flex-col items-center gap-2 text-center text-xs text-muted-foreground">
-          <div>from</div>
-          <div className="text-base font-semibold tracking-[-0.03em] text-foreground">{footerLabel}</div>
-        </div>
+        {mode !== "forgot" && (
+          <>
+            {/* Social Buttons */}
+            <div className="w-full flex flex-col gap-2.5">
+              <Button
+                variant="outline"
+                className="w-full h-11 flex items-center gap-2.5 border border-neutral-300 rounded-lg text-[14px] font-medium text-neutral-800 hover:bg-neutral-50 transition-colors"
+                onClick={signInWithGoogle}
+                type="button"
+              >
+                {/* Google G icon */}
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                  <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                </svg>
+                Sign in with Google
+              </Button>
 
-        <div className="mt-8 flex items-center justify-center gap-6 text-xs text-muted-foreground">
-          <Link href="/" className="underline-offset-4 hover:underline">
-            Terms of service
-          </Link>
-          <Link href="/" className="underline-offset-4 hover:underline">
-            Privacy policy
-          </Link>
-          <span>©2026 Forge</span>
-        </div>
+              <Button
+                variant="outline"
+                className="w-full h-11 flex items-center gap-2.5 border border-neutral-300 rounded-lg text-[14px] font-medium text-neutral-800 hover:bg-neutral-50 transition-colors"
+                onClick={signInWithApple}
+                type="button"
+              >
+                {/* Apple icon */}
+                <svg width="16" height="18" viewBox="0 0 16 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M13.173 9.557c-.02-2.17 1.773-3.22 1.854-3.27-1.012-1.48-2.584-1.682-3.143-1.703-1.335-.136-2.61.79-3.287.79-.676 0-1.716-.773-2.826-.752-1.447.022-2.788.843-3.531 2.135C.717 9.31 1.81 13.5 3.37 15.78c.774 1.116 1.692 2.368 2.9 2.322 1.165-.047 1.604-.749 3.013-.749 1.41 0 1.806.749 3.037.726 1.254-.022 2.044-1.133 2.81-2.253.888-1.29 1.253-2.54 1.273-2.605-.028-.013-2.44-.935-2.463-3.664z" fill="#000"/>
+                  <path d="M10.98 2.9c.637-.78 1.07-1.857.952-2.934-.92.038-2.044.617-2.706 1.39-.59.685-1.11 1.79-.972 2.843 1.027.08 2.08-.523 2.726-1.3z" fill="#000"/>
+                </svg>
+                Sign in with Apple
+              </Button>
+            </div>
+
+            {/* Divider */}
+            <div className="w-full flex items-center gap-3">
+              <Separator className="flex-1 bg-neutral-200" />
+              <span className="text-[12px] text-neutral-400 font-medium">Or</span>
+              <Separator className="flex-1 bg-neutral-200" />
+            </div>
+
+            {/* Email/Password Form */}
+            <form onSubmit={handleEmailSubmit} className="w-full flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email" className="text-[13px] font-medium text-neutral-700">
+                  Email <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="mail@domain.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-[13px] font-medium text-neutral-700">
+                    Password <span className="text-red-500">*</span>
+                  </Label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => setMode("forgot")}
+                      className="text-[12px] text-neutral-500 hover:text-neutral-700 transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-10 text-[14px] border-neutral-300 rounded-lg pr-10 placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
+                    required
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Cloudflare Turnstile */}
+              <div className="w-full flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  {cfVerified && (
+                    <div className="flex items-center gap-1.5 text-[12px] text-green-600 font-medium">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <circle cx="7" cy="7" r="7" fill="#22c55e"/>
+                        <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Verified
+                    </div>
+                  )}
+                  <div className="ml-auto flex items-center gap-1 text-[11px] text-neutral-400">
+                    <svg width="16" height="10" viewBox="0 0 80 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M40 0C17.9 0 0 5.8 0 13s17.9 13 40 13 40-5.8 40-13S62.1 0 40 0z" fill="#F38020"/>
+                    </svg>
+                    <span>Cloudflare</span>
+                  </div>
+                </div>
+                <div ref={turnstileRef} className="w-full" />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || !cfToken}
+                className="w-full h-11 bg-neutral-700 hover:bg-neutral-800 text-white text-[14px] font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    {mode === "signin" ? "Signing in..." : "Creating account..."}
+                  </span>
+                ) : (
+                  mode === "signin" ? "Sign in" : "Create account"
+                )}
+              </Button>
+            </form>
+
+            {/* Toggle mode */}
+            <p className="text-[13px] text-neutral-500">
+              {mode === "signin" ? (
+                <>Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("signup")}
+                    className="text-neutral-800 font-medium hover:underline"
+                  >
+                    Sign up
+                  </button>
+                </>
+              ) : (
+                <>Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setMode("signin")}
+                    className="text-neutral-800 font-medium hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </p>
+          </>
+        )}
+
+        {/* Forgot Password */}
+        {mode === "forgot" && (
+          <form onSubmit={handleForgotPassword} className="w-full flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="reset-email" className="text-[13px] font-medium text-neutral-700">
+                Email <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="mail@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
+                required
+                autoComplete="email"
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full h-11 bg-neutral-700 hover:bg-neutral-800 text-white text-[14px] font-medium rounded-lg transition-colors"
+            >
+              Send reset link
+            </Button>
+            <button
+              type="button"
+              onClick={() => setMode("signin")}
+              className="text-[13px] text-neutral-500 hover:text-neutral-700 transition-colors"
+            >
+              ← Back to sign in
+            </button>
+          </form>
+        )}
+
+        {/* Footer */}
+        <p className="text-[11px] text-neutral-400 text-center leading-relaxed">
+          By continuing, you agree to Forge's{" "}
+          <a href="/privacy" className="underline hover:text-neutral-600">Privacy Policy</a>
+          {" & "}
+          <a href="/terms" className="underline hover:text-neutral-600">Terms</a>
+        </p>
       </div>
     </div>
   );

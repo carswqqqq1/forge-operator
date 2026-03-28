@@ -1,0 +1,65 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "openId": "forge-local:apple:demo-apple@forge.local",
+      "name": "Apple User",
+      "email": "demo-apple@forge.local",
+      "loginMethod": "apple",
+      "role": "user",
+      "createdAt": "2026-03-28T00:53:33.015Z",
+      "updatedAt": "2026-03-28T00:53:34.595Z",
+      "lastSignedIn": "2026-03-28T00:53:34.594Z"
+    },
+    {
+      "id": 2,
+      "openId": "forge-local:microsoft:demo-microsoft@forge.local",
+      "name": "Microsoft User",
+      "email": "demo-microsoft@forge.local",
+      "loginMethod": "microsoft",
+      "role": "user",
+      "createdAt": "2026-03-28T00:53:36.783Z",
+      "updatedAt": "2026-03-28T00:53:36.783Z",
+      "lastSignedIn": "2026-03-28T00:53:36.782Z"
+    },
+    {
+      "id": 3,
+      "openId": "forge-local:google:demo-google@forge.local",
+      "name": "Google User",
+      "email": "demo-google@forge.local",
+      "loginMethod": "google",
+      "role": "user",
+      "createdAt": "2026-03-28T00:53:37.654Z",
+      "updatedAt": "2026-03-28T01:11:25.658Z",
+      "lastSignedIn": "2026-03-28T01:11:25.657Z"
+    },
+    {
+      "id": 4,
+      "openId": "forge-local:facebook:demo-facebook@forge.local",
+      "name": "Facebook User",
+      "email": "demo-facebook@forge.local",
+      "loginMethod": "facebook",
+      "role": "user",
+      "createdAt": "2026-03-28T01:03:16.466Z",
+      "updatedAt": "2026-03-28T01:03:16.466Z",
+      "lastSignedIn": "2026-03-28T01:03:16.465Z"
+    }
+  ],
+  "conversations": [],
+  "messages": [],
+  "toolExecutions": [],
+  "memories": [],
+  "usageEvents": [],
+  "appState": {
+    "credits": 851,
+    "selectedTier": "max"
+  },
+  "counters": {
+    "users": 4,
+    "conversations": 0,
+    "messages": 0,
+    "toolExecutions": 0,
+    "memories": 0,
+    "usageEvents": 0
+  }
+}

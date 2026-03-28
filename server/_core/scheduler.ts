@@ -1,4 +1,4 @@
-import cron from "node-cron";
+import * as cron from "node-cron";
 import * as db from "../db";
 import * as ollama from "../ollama";
 import * as nvidia from "../nvidia";
@@ -14,7 +14,7 @@ type ScheduledTaskExecution = {
   error?: string;
 };
 
-const activeJobs = new Map<number, cron.ScheduledTask>();
+const activeJobs = new Map<number, ReturnType<typeof cron.schedule>>();
 const executionHistory: ScheduledTaskExecution[] = [];
 
 export async function initializeScheduler() {

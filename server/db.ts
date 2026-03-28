@@ -374,9 +374,12 @@ export async function getUsageState() {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
-    return store.appState;
+    const recentEvents = [...(store.usageEvents || [])]
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+      .slice(0, 20);
+    return { ...store.appState, recentEvents };
   }
-  return { credits: 851, selectedTier: "max" as const };
+  return { credits: 851, selectedTier: "max" as const, recentEvents: [] };
 }
 
 export async function setSelectedTier(tier: "lite" | "core" | "max") {
@@ -587,4 +590,89 @@ export async function updateResearchSession(id: number, data: Partial<InsertRese
   const db = await getDb();
   if (!db) return;
   await db.update(researchSessions).set(data).where(eq(researchSessions.id, id));
+}
+
+// ─── Skills ──────────────────────────────────────────────────────────────────
+export async function listSkills(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(skills).where(eq(skills.userId, userId)).orderBy(desc(skills.createdAt));
+}
+export async function createSkill(userId: number, data: InsertSkill) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(skills).values({ ...data, userId });
+  return { id: result[0].insertId };
+}
+export async function deleteSkill(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(skills).where(eq(skills.id, id));
+}
+
+// ─── Prompts (user-scoped) ───────────────────────────────────────────────────
+export async function listPrompts(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(systemPrompts).where(eq(systemPrompts.userId, userId)).orderBy(desc(systemPrompts.createdAt));
+}
+export async function createPrompt(userId: number, data: InsertSystemPrompt) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(systemPrompts).values({ ...data, userId });
+  return { id: result[0].insertId };
+}
+export async function updatePrompt(id: number, data: Partial<InsertSystemPrompt>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(systemPrompts).set(data).where(eq(systemPrompts.id, id));
+}
+export async function deletePrompt(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(systemPrompts).where(eq(systemPrompts.id, id));
+}
+
+// ─── Tool Execution list + stats ─────────────────────────────────────────────
+export async function listToolExecutions(userId: number, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(toolExecutions)
+    .where(eq(toolExecutions.userId, userId))
+    .orderBy(desc(toolExecutions.createdAt))
+    .limit(limit);
+}
+export async function getToolExecutionStats(userId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, success: 0, error: 0, running: 0, avgDuration: 0, byTool: [] };
+  const rows = await db.select().from(toolExecutions).where(eq(toolExecutions.userId, userId));
+  const durations = rows.filter(r => r.durationMs != null).map(r => r.durationMs as number);
+  const avgDuration = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+  const toolMap = new Map<string, { count: number; totalDuration: number }>();
+  for (const row of rows) {
+    const entry = toolMap.get(row.toolName) ?? { count: 0, totalDuration: 0 };
+    entry.count++;
+    if (row.durationMs) entry.totalDuration += row.durationMs;
+    toolMap.set(row.toolName, entry);
+  }
+  const byTool = Array.from(toolMap.entries()).map(([name, { count, totalDuration }]) => ({
+    name,
+    count,
+    avgDuration: count ? Math.round(totalDuration / count) : 0,
+  }));
+  return {
+    total: rows.length,
+    success: rows.filter(r => r.status === "success").length,
+    error: rows.filter(r => r.status === "error").length,
+    running: rows.filter(r => r.status === "running").length,
+    avgDuration,
+    byTool,
+  };
+}
+
+// ─── Memory delete ───────────────────────────────────────────────────────────
+export async function deleteMemory(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(memories).where(eq(memories.id, id));
 }
