@@ -352,7 +352,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
               </div>
               <div className="flex items-center justify-between border-t border-[#d9eafc] bg-[#eef6ff] px-4 py-2.5 text-sm text-[#54677d]">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-[#4787e8]" />
+                  <img src="/logo-light.png" alt="Forge Logo" className="h-4 w-4 object-contain" />
                   <span>Your task on Forge Desktop consumes <span className="font-semibold">50% fewer credits</span></span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -464,7 +464,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                 >
                   {msg.role === "assistant" && (
                     <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                      <img src="/logo-light.png" alt="Forge Logo" className="h-4 w-4 object-contain" />
                     </div>
                   )}
 

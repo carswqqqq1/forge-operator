@@ -133,8 +133,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             {!isCollapsed && (
               <div className="mr-auto flex items-center gap-2 px-1">
-                <div className="flex h-7 w-7 items-center justify-center rounded-md text-foreground">
-                  <Sparkles className="h-4 w-4" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden">
+                  <img src="/logo-light.png" alt="Forge Logo" className="h-full w-full object-contain" />
                 </div>
                 <span className="text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground">forge</span>
               </div>
