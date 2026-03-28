@@ -8,8 +8,8 @@
       "loginMethod": "apple",
       "role": "user",
       "createdAt": "2026-03-28T00:53:33.015Z",
-      "updatedAt": "2026-03-28T00:53:34.595Z",
-      "lastSignedIn": "2026-03-28T00:53:34.594Z"
+      "updatedAt": "2026-03-28T01:21:35.952Z",
+      "lastSignedIn": "2026-03-28T01:21:35.951Z"
     },
     {
       "id": 2,
@@ -30,8 +30,8 @@
       "loginMethod": "google",
       "role": "user",
       "createdAt": "2026-03-28T00:53:37.654Z",
-      "updatedAt": "2026-03-28T01:11:25.658Z",
-      "lastSignedIn": "2026-03-28T01:11:25.657Z"
+      "updatedAt": "2026-03-28T01:21:11.964Z",
+      "lastSignedIn": "2026-03-28T01:21:11.964Z"
     },
     {
       "id": 4,

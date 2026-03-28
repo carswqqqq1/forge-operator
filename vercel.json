@@ -1,26 +1,22 @@
 {
   "version": 2,
   "buildCommand": "pnpm build",
-  "outputDirectory": "dist",
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "envPrefix": "VITE_",
+  "outputDirectory": "dist/public",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "framework": null,
   "regions": ["iad1"],
-  "functions": {
-    "dist/index.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  },
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/dist/index.js"
-    },
+      "source": "/((?!assets/|icon-only\\.png|logo-light\\.png|logo-dark\\.png|favicon\\.ico).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
     {
-      "source": "/(.*)",
-      "destination": "/dist/index.html"
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
     }
   ]
 }
