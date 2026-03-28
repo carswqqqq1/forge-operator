@@ -5,7 +5,6 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
   useSidebar,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
@@ -17,23 +16,16 @@ import {
   Library,
   FolderPlus,
   Plus,
-  PanelLeft,
   ChevronDown,
   ChevronRight,
-  Settings,
-  LayoutGrid,
-  Smartphone,
-  MessageSquare,
   LayoutDashboard,
-  ScrollText,
-  Clock,
-  BookOpen,
+  MessageSquare,
   Filter,
   Bell,
-  Gem,
-  Share2,
   SlidersHorizontal,
   Plug,
+  Menu,
+  WandSparkles,
 } from "lucide-react";
 import { CSSProperties, useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -53,17 +45,17 @@ const DEFAULT_WIDTH = 240;
 const modelOptions = [
   {
     id: "max",
-    label: "Forge 1.6 Max",
+    label: "Manus 1.6 Max",
     description: "High-performance agent designed for complex tasks.",
   },
   {
     id: "core",
-    label: "Forge 1.6",
+    label: "Manus 1.6",
     description: "Versatile agent capable of most tasks.",
   },
   {
     id: "lite",
-    label: "Forge 1.6 Lite",
+    label: "Manus 1.6 Lite",
     description: "A lightweight agent for everyday tasks.",
   },
 ];
@@ -88,7 +80,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const isMobile = useIsMobile();
-  const [selectedTier, setSelectedTier] = useState<"max" | "core" | "lite">("max");
+  const [selectedTier, setSelectedTier] = useState<"max" | "core" | "lite">("lite");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
 
@@ -101,8 +93,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return location === path;
   };
 
-  // Get current model name for header
-  const currentModel = modelOptions.find((option) => option.id === selectedTier)?.label || "Forge 1.6 Max";
+  const currentModel = modelOptions.find((option) => option.id === selectedTier)?.label || "Manus 1.6 Lite";
 
   useEffect(() => {
     if (usageState?.selectedTier) {
@@ -128,7 +119,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-        {/* Header */}
         <SidebarHeader className="p-3 pb-0">
           <div className="flex items-center gap-2">
             {!isCollapsed && (
@@ -144,7 +134,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 onClick={toggleSidebar}
                 className="ml-auto h-7 w-7 flex items-center justify-center hover:bg-accent rounded-md transition-colors shrink-0"
               >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
             {isCollapsed && (
@@ -152,16 +142,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                 onClick={toggleSidebar}
                 className="h-7 w-7 flex items-center justify-center hover:bg-accent rounded-md transition-colors mx-auto"
               >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
+                <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
             )}
           </div>
         </SidebarHeader>
 
         <SidebarContent className="gap-0 px-3">
-          {/* Top Actions */}
           <div className="space-y-0.5 pt-3">
-            {/* New Task */}
             <button
               onClick={() => {
                 setLocation("/");
@@ -177,7 +165,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               {!isCollapsed && <span>New task</span>}
             </button>
 
-            {/* Agents */}
             <button
               onClick={() => setLocation("/skills")}
               className={cn(
@@ -188,15 +175,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               )}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
-              {!isCollapsed && (
-                <>
-                  <span>Agents</span>
-                  <span className="ml-auto text-[10px] font-medium bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">New</span>
-                </>
-              )}
+              {!isCollapsed && <span>Agents</span>}
             </button>
 
-            {/* Search */}
             <button
               onClick={() => setSearchOpen(true)}
               className={cn(
@@ -210,7 +191,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               {!isCollapsed && <span>Search</span>}
             </button>
 
-            {/* Library */}
             <button
               onClick={() => setLocation("/memory")}
               className={cn(
@@ -227,7 +207,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
           {!isCollapsed && (
             <>
-              {/* Projects Section */}
               <div className="mt-6">
                 <div className="flex items-center justify-between px-2.5 mb-1">
                   <span className="text-xs font-medium text-muted-foreground">Projects</span>
@@ -249,7 +228,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
               <SidebarSeparator className="my-3" />
 
-              {/* All Tasks / Past Chats */}
               <div>
                 <div className="flex items-center justify-between px-2.5 mb-1">
                   <span className="text-xs font-medium text-muted-foreground">All tasks</span>
@@ -287,27 +265,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           )}
         </SidebarContent>
 
-        {/* Footer */}
         <SidebarFooter className="p-3">
           {!isCollapsed && (
             <div className="space-y-2">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-3 py-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.02)] transition-colors hover:bg-accent/60"
-              >
-                <div>
-                  <div className="text-sm font-medium text-foreground">Share Forge with a friend</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">Get 500 credits each</div>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </button>
-
-              {/* Quick Nav Links */}
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-2 gap-1">
                 {[
                   { icon: SlidersHorizontal, path: "/settings", label: "Settings" },
                   { icon: LayoutDashboard, path: "/connectors", label: "Connectors" },
-                  { icon: Share2, path: "/scheduled", label: "Desktop" },
                 ].map((item) => (
                   <Tooltip key={item.path}>
                     <TooltipTrigger asChild>
@@ -343,19 +307,23 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
-        {/* Top Header Bar */}
-        <div className="h-14 border-b border-border/80 flex items-center justify-between px-4 bg-background/95 backdrop-blur sticky top-0 z-40">
+      <SidebarInset className="bg-[#f6f5f2]">
+        <div className="sticky top-0 z-40 flex h-[74px] items-center justify-between border-b border-[#ddd8cf] bg-[#f6f5f2]/95 px-4 backdrop-blur">
           <div className="flex items-center gap-3">
             {(isMobile || isCollapsed) && (
-              <SidebarTrigger className="h-7 w-7 rounded-md" />
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[#5f5953] transition-colors hover:bg-[#efede8]"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
             )}
-            {/* Model Selector Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[1.05rem] font-semibold tracking-[-0.03em] hover:bg-accent transition-colors">
+                <button type="button" className="flex items-center gap-1.5 rounded-md px-1 py-1 text-[18px] font-medium tracking-[-0.03em] text-[#36322d] transition-colors hover:bg-[#efede8]">
                   <span>{currentModel}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  <ChevronDown className="h-4 w-4 text-[#7a746c]" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-[286px] rounded-2xl p-2 shadow-[0_24px_70px_rgba(15,23,42,0.14)]">
@@ -381,26 +349,23 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-accent">
-              <Bell className="h-4 w-4" />
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-400" />
+            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full border border-[#ddd8cf] bg-[#f8f7f4] text-[#5f5953] transition-colors hover:bg-[#efede8]">
+              <Bell className="h-5 w-5" />
+              <span className="absolute right-[13px] top-[12px] h-2.5 w-2.5 rounded-full bg-[#ff7f96]" />
             </button>
-            <button
-              type="button"
-              onClick={() => setLocation("/billing")}
-              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-accent"
-            >
-              <Gem className="h-4 w-4 text-muted-foreground" />
-              <span>{Math.max(0, Math.round(usageState?.credits ?? 851))}</span>
+            <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#ddd8cf] bg-[#f8f7f4] text-[#5f5953] transition-colors hover:bg-[#efede8]">
+              <WandSparkles className="h-5 w-5" />
             </button>
-            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-400/80 text-sm font-medium text-white">
+            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#29bfe8] text-[20px] font-medium text-white shadow-none">
               C
+              <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-black text-[9px] text-white">+</span>
             </button>
           </div>
         </div>
 
-        <main className="flex-1 h-[calc(100vh-48px)] overflow-hidden">{children}</main>
+        <main className="flex-1 h-[calc(100vh-74px)] overflow-hidden">{children}</main>
       </SidebarInset>
+
       {searchOpen ? (
         <div className="fixed inset-0 z-[80] flex items-start justify-center bg-black/10 px-4 pt-16 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
           <div
@@ -448,10 +413,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                     <ChevronRight className="mt-0.5 h-4 w-4 text-muted-foreground" />
                   </button>
                 ))}
-              <div className="mt-2 rounded-xl px-3 py-3 text-left">
-                <div className="text-xs text-muted-foreground">Ask AI assistant</div>
-                <div className="mt-2 text-sm font-medium text-foreground">Can you tell me about credits?</div>
-              </div>
             </div>
           </div>
         </div>
