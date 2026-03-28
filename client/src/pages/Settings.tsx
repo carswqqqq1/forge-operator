@@ -11,10 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Settings as SettingsIcon, Cpu, HardDrive, RefreshCw,
   Globe, Key, Monitor, Unplug, Zap, Shield, Chrome, Cookie,
-  Eye, EyeOff, CheckCircle2, XCircle, Loader2
+  Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plug
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import ConnectorsSettings from "./ConnectorsSettings";
 
 export default function Settings() {
 
@@ -65,10 +66,18 @@ export default function Settings() {
   return (
     <ScrollArea className="h-full">
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Configure inference providers and system preferences</p>
-        </div>
+        <Tabs defaultValue="inference" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="inference" className="text-xs">Inference</TabsTrigger>
+            <TabsTrigger value="connectors" className="text-xs">Connectors</TabsTrigger>
+            <TabsTrigger value="browser" className="text-xs">Browser</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="inference" className="space-y-6 mt-6">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Inference Settings</h1>
+              <p className="text-sm text-muted-foreground mt-1">Configure inference providers and system preferences</p>
+            </div>
 
 
 
@@ -373,6 +382,20 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="connectors" className="space-y-6 mt-6">
+            <ConnectorsSettings />
+          </TabsContent>
+
+          <TabsContent value="browser" className="space-y-6 mt-6">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Browser Settings</h1>
+              <p className="text-sm text-muted-foreground mt-1">Configure Claude browser automation</p>
+            </div>
+            {/* Browser settings content will go here */}
+          </TabsContent>
+        </Tabs>
       </div>
     </ScrollArea>
   );
