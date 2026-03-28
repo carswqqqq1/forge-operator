@@ -1,4 +1,6 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -9,8 +11,37 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import * as claude from "../claude";
 import * as ollama from "../ollama";
+import * as nvidia from "../nvidia";
 import { AVAILABLE_TOOLS, executeTool } from "../tools";
 import * as db from "../db";
+
+const TIER_CONFIG = {
+  lite: {
+    model: process.env.NVIDIA_MODEL_FAST || "meta/llama-3.1-8b-instruct",
+    multiplier: 0.35,
+  },
+  core: {
+    model: process.env.NVIDIA_MODEL_DEFAULT || "meta/llama-3.1-70b-instruct",
+    multiplier: 1,
+  },
+  max: {
+    model: process.env.NVIDIA_MODEL_REASONING || "deepseek-ai/deepseek-v3.1",
+    multiplier: 1.8,
+  },
+} as const;
+
+function getTierForModel(model?: string) {
+  if (!model) return "core" as const;
+  if (model === TIER_CONFIG.lite.model) return "lite" as const;
+  if (model === TIER_CONFIG.max.model) return "max" as const;
+  return "core" as const;
+}
+
+function calculateCreditCost(tokenCount: number, tier: keyof typeof TIER_CONFIG) {
+  const baseCost = 0.6;
+  const tokenCost = Math.max(1, tokenCount) / 120;
+  return Number((baseCost + tokenCost * TIER_CONFIG[tier].multiplier).toFixed(1));
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -106,86 +137,155 @@ async function startServer() {
     }
 
     try {
-      const stream = await ollama.chatCompletionStream({
-        model: model || "llama3",
-        messages: ollamaMessages,
-        stream: true,
-        tools: AVAILABLE_TOOLS,
-      });
-
-      const reader = stream.getReader();
       let fullContent = "";
       let evalCount = 0;
       let evalDuration = 0;
+      const ollamaHealth = await ollama.checkOllamaHealth();
+      const localModels = ollamaHealth.ok ? await ollama.listModels() : [];
+      const nvidiaKey = process.env.NVIDIA_API_KEY;
+      const explicitNvidiaModel = typeof model === "string" && model.includes("/");
+      const missingLocalModel =
+        !!model &&
+        !explicitNvidiaModel &&
+        ollamaHealth.ok &&
+        !localModels.some((localModel) => localModel.name === model);
+      const useNvidiaFallback =
+        (!!nvidiaKey && explicitNvidiaModel) ||
+        (!!nvidiaKey && missingLocalModel) ||
+        (!ollamaHealth.ok && !!nvidiaKey);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      if (useNvidiaFallback) {
+        const nvidiaMessages = [
+          {
+            role: "system" as const,
+            content:
+              "You are Forge, a helpful AI operator. Reply in clear natural English by default unless the user explicitly asks for another language.",
+          },
+          ...ollamaMessages
+          .filter((message) => message.role !== "tool")
+          .map((message) => ({ role: message.role as "system" | "user" | "assistant", content: message.content })),
+        ];
+        const nvidiaModel =
+          process.env.NVIDIA_MODEL_REASONING ||
+          process.env.NVIDIA_MODEL_DEFAULT ||
+          "meta/llama-3.1-70b-instruct";
 
-        const chunk = value as ollama.OllamaStreamChunk;
-        if (chunk.message?.content) {
-          fullContent += chunk.message.content;
+        for await (const chunk of nvidia.nvidiaStreamChat(nvidiaKey!, {
+          model: nvidiaModel,
+          messages: nvidiaMessages,
+          temperature: 0.2,
+          top_p: 0.7,
+          max_tokens: 4096,
+        })) {
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (!delta) continue;
+          fullContent += delta;
+          evalCount += 1;
           res.write(`data: ${JSON.stringify({
             type: "text",
-            content: chunk.message.content,
+            content: delta,
             model: chunk.model,
           })}\n\n`);
         }
 
-        // Handle tool calls
-        if (chunk.message?.tool_calls) {
-          for (const tc of chunk.message.tool_calls) {
+        res.write(`data: ${JSON.stringify({
+          type: "done",
+          content: "",
+          tokenCount: evalCount,
+          tokensPerSecond: null,
+          model: nvidiaModel,
+        })}\n\n`);
+      } else {
+        const stream = await ollama.chatCompletionStream({
+          model: model || "llama3",
+          messages: ollamaMessages,
+          stream: true,
+          tools: AVAILABLE_TOOLS,
+        });
+
+        const reader = stream.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = value as ollama.OllamaStreamChunk;
+          if (chunk.message?.content) {
+            fullContent += chunk.message.content;
             res.write(`data: ${JSON.stringify({
-              type: "tool_use",
-              content: JSON.stringify({ name: tc.function.name, args: tc.function.arguments }),
+              type: "text",
+              content: chunk.message.content,
+              model: chunk.model,
             })}\n\n`);
-
-            const result = await executeTool(tc.function.name, tc.function.arguments as Record<string, unknown>, {
-              storeMemory: db.storeMemory,
-              recallMemory: db.recallMemory,
-            });
-
-            res.write(`data: ${JSON.stringify({
-              type: "tool_result",
-              content: result.output,
-            })}\n\n`);
-
-            await db.logToolExecution({
-              conversationId: conversationId || null,
-              toolName: tc.function.name,
-              toolInput: JSON.stringify(tc.function.arguments),
-              toolOutput: result.output,
-              status: result.success ? "success" : "error",
-              durationMs: result.durationMs,
-            });
           }
-        }
 
-        if (chunk.eval_count) evalCount = chunk.eval_count;
-        if (chunk.eval_duration) evalDuration = chunk.eval_duration;
+          if (chunk.message?.tool_calls) {
+            for (const tc of chunk.message.tool_calls) {
+              res.write(`data: ${JSON.stringify({
+                type: "tool_use",
+                content: JSON.stringify({ name: tc.function.name, args: tc.function.arguments }),
+              })}\n\n`);
 
-        if (chunk.done) {
-          const tps = evalDuration > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
-          res.write(`data: ${JSON.stringify({
-            type: "done",
-            content: "",
-            tokenCount: evalCount,
-            tokensPerSecond: tps,
-            model: chunk.model,
-          })}\n\n`);
+              const result = await executeTool(tc.function.name, tc.function.arguments as Record<string, unknown>, {
+                storeMemory: db.storeMemory,
+                recallMemory: db.recallMemory,
+              });
+
+              res.write(`data: ${JSON.stringify({
+                type: "tool_result",
+                content: result.output,
+              })}\n\n`);
+
+              await db.logToolExecution({
+                conversationId: conversationId || null,
+                toolName: tc.function.name,
+                toolInput: JSON.stringify(tc.function.arguments),
+                toolOutput: result.output,
+                status: result.success ? "success" : "error",
+                durationMs: result.durationMs,
+              });
+            }
+          }
+
+          if (chunk.eval_count) evalCount = chunk.eval_count;
+          if (chunk.eval_duration) evalDuration = chunk.eval_duration;
+
+          if (chunk.done) {
+            const tps = evalDuration > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
+            res.write(`data: ${JSON.stringify({
+              type: "done",
+              content: "",
+              tokenCount: evalCount,
+              tokensPerSecond: tps,
+              model: chunk.model,
+            })}\n\n`);
+          }
         }
       }
 
       // Save to DB
       if (conversationId && fullContent) {
         const tps = evalDuration > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
+        const finalModel = useNvidiaFallback
+          ? (process.env.NVIDIA_MODEL_REASONING || process.env.NVIDIA_MODEL_DEFAULT || "meta/llama-3.1-70b-instruct")
+          : (model || "llama3");
         await db.addMessage({
           conversationId,
           role: "assistant",
           content: fullContent,
-          model: model || "llama3",
+          model: finalModel,
           tokenCount: evalCount,
-          tokensPerSecond: tps,
+          tokensPerSecond: useNvidiaFallback ? null : tps,
+        });
+
+        const tier = getTierForModel(finalModel);
+        await db.consumeCredits({
+          amount: calculateCreditCost(evalCount, tier),
+          tier,
+          model: finalModel,
+          tokenCount: evalCount,
+          conversationId,
+          note: "Assistant response",
         });
       }
     } catch (error: any) {

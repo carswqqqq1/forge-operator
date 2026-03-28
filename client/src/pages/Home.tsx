@@ -7,15 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Send, Sparkles, User, Terminal, ChevronDown, ChevronRight,
-  Cpu, Zap, Clock, Loader2, StopCircle, Github, Instagram,
-  CreditCard, MessageCircle, Plus, Settings, Lightbulb, Code,
-  Palette, Zap as ZapIcon,
+  Zap, Clock, Loader2, StopCircle, Github, Instagram,
+  CreditCard, Plus, Lightbulb, Code,
+  Palette, Monitor, Mic, Volume2, X,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Streamdown } from "streamdown";
 import { useLocation } from "wouter";
-
-type Provider = "ollama" | "claude";
 
 interface StreamingState {
   active: boolean;
@@ -25,11 +23,17 @@ interface StreamingState {
   toolCalls: Array<{ name: string; args: string; result?: string }>;
 }
 
+const pendingPromptKey = (conversationId: number) => `forge-pending-prompt:${conversationId}`;
+const tierModelMap = {
+  lite: "meta/llama-3.1-8b-instruct",
+  core: "meta/llama-3.1-70b-instruct",
+  max: "deepseek-ai/deepseek-v3.1",
+} as const;
+
 export default function Home({ conversationId }: { conversationId?: string }) {
   const [location, setLocation] = useLocation();
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState<string>("qwen3:8b");
-  const [provider, setProvider] = useState<Provider>("ollama");
+  const [selectedModel, setSelectedModel] = useState<string>("meta/llama-3.1-70b-instruct");
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
   const [streaming, setStreaming] = useState<StreamingState>({
     active: false, content: "", tokenCount: 0, startTime: 0, toolCalls: [],
@@ -37,11 +41,11 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingPromptHandledRef = useRef<number | null>(null);
 
   const convId = conversationId ? parseInt(conversationId) : null;
 
   // Queries
-  const { data: models } = trpc.ollama.models.useQuery();
   const { data: conversation } = trpc.conversations.get.useQuery(
     { id: convId! },
     { enabled: !!convId }
@@ -50,28 +54,30 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     { conversationId: convId! },
     { enabled: !!convId, refetchInterval: false }
   );
-  const { data: health } = trpc.ollama.health.useQuery();
-  const { data: claudeStatus } = trpc.claude.status.useQuery(undefined, { refetchInterval: 10000 });
-  const { data: claudeModels } = trpc.claude.models.useQuery();
+  const { data: nvidiaStatus } = trpc.nvidia.status.useQuery();
+  const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
 
   const createConversation = trpc.conversations.create.useMutation();
-  const addMessage = trpc.messages.send.useMutation({ onSuccess: () => refetchMessages() });
+  const addMessage = trpc.messages.create.useMutation({ onSuccess: () => refetchMessages() });
 
-  const isClaudeReady = claudeStatus?.connected && claudeStatus?.mode !== "none";
-  const isOllamaReady = health?.ok;
-  const canSend = provider === "ollama" ? isOllamaReady : isClaudeReady;
+  const isNvidiaReady = !!nvidiaStatus?.connected;
+  const canSend = isNvidiaReady;
 
-  // Set default model
   useEffect(() => {
-    if (models && models.length > 0 && selectedModel === "qwen3:8b") {
-      const hasGptOss = models.some(m => m.name === "qwen3:8b");
-      if (hasGptOss) {
-        setSelectedModel("qwen3:8b");
-      } else {
-        setSelectedModel(conversation?.model || models[0].name);
-      }
+    if (conversation?.model) {
+      setSelectedModel(conversation.model);
+      return;
     }
-  }, [models, conversation]);
+
+    if (isNvidiaReady && usageState?.selectedTier) {
+      setSelectedModel(tierModelMap[usageState.selectedTier] || "meta/llama-3.1-70b-instruct");
+      return;
+    }
+
+    if (isNvidiaReady) {
+      setSelectedModel("meta/llama-3.1-70b-instruct");
+    }
+  }, [conversation?.model, isNvidiaReady, usageState?.selectedTier]);
 
   // Auto-scroll
   useEffect(() => {
@@ -98,7 +104,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     await addMessage.mutateAsync({
       conversationId: targetConvId,
       content,
-      model: provider === "ollama" ? selectedModel : claudeStatus?.model || "claude-sonnet-4-20250514",
+      model: selectedModel,
     }).catch(() => {});
 
     // Build message history
@@ -111,18 +117,14 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     setStreaming({ active: true, content: "", tokenCount: 0, startTime: Date.now(), toolCalls: [] });
 
     try {
-      const endpoint = provider === "claude" ? "/api/claude/stream" : "/api/ollama/stream";
       const body: any = {
         messages: history,
         conversationId: targetConvId,
+        model: selectedModel,
+        systemPrompt: conversation?.systemPrompt || undefined,
       };
 
-      if (provider === "ollama") {
-        body.model = selectedModel;
-        body.systemPrompt = conversation?.systemPrompt || undefined;
-      }
-
-      const res = await fetch(endpoint, {
+      const res = await fetch("/api/ollama/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -187,8 +189,8 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     } catch (e: any) {
       if (e.name !== "AbortError") {
         let errorMsg = e.message;
-        if (errorMsg === "fetch failed" && provider === "ollama") {
-          errorMsg = "Ollama is not running. Start it with: `ollama serve`";
+        if (errorMsg === "fetch failed") {
+          errorMsg = "Forge could not reach the model service.";
         }
         setStreaming(prev => ({
           ...prev,
@@ -200,7 +202,19 @@ export default function Home({ conversationId }: { conversationId?: string }) {
       abortRef.current = null;
       refetchMessages();
     }
-  }, [provider, selectedModel, conversation, claudeStatus]);
+  }, [selectedModel, conversation, addMessage, refetchMessages]);
+
+  useEffect(() => {
+    if (!convId || streaming.active) return;
+    if (pendingPromptHandledRef.current === convId) return;
+
+    const storedPrompt = window.sessionStorage.getItem(pendingPromptKey(convId));
+    if (!storedPrompt) return;
+
+    pendingPromptHandledRef.current = convId;
+    window.sessionStorage.removeItem(pendingPromptKey(convId));
+    void handleStreamingSend(convId, storedPrompt);
+  }, [convId, handleStreamingSend, streaming.active]);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -215,13 +229,15 @@ export default function Home({ conversationId }: { conversationId?: string }) {
           model: selectedModel || undefined,
         });
         targetConvId = newConv.id;
+        window.sessionStorage.setItem(pendingPromptKey(newConv.id), content);
         setLocation(`/chat/${newConv.id}`);
+        return;
       } catch {
         return;
       }
     }
 
-    handleStreamingSend(targetConvId, content);
+    void handleStreamingSend(targetConvId, content);
   };
 
   const handleStop = () => {
@@ -253,97 +269,108 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const elapsed = streaming.active ? ((Date.now() - streaming.startTime) / 1000) : 0;
   const liveTps = elapsed > 0 ? (streaming.tokenCount / elapsed).toFixed(1) : "0";
 
+  const connectorButtons = [
+    { icon: Github, onClick: () => setLocation("/connectors") },
+    { icon: Instagram, onClick: () => setLocation("/research") },
+    { icon: CreditCard, onClick: () => setLocation("/billing") },
+  ];
+  const quickActions = [
+    { icon: Lightbulb, label: "Create slides", prompt: "Create a slide deck outline for my topic with a strong narrative arc." },
+    { icon: Code, label: "Build website", prompt: "Plan and build a landing page for my product with sections, copy, and a launch checklist." },
+    { icon: Monitor, label: "Develop desktop apps", prompt: "Help me plan and scaffold a desktop app with the core features and architecture." },
+    { icon: Palette, label: "Design", prompt: "Generate a polished design direction and UI plan for this product idea." },
+    { icon: Plus, label: "More", prompt: "Show me more things Forge can help me build and automate." },
+  ];
+
   // Empty state - Manus-style home
   if (!convId) {
     return (
-      <div className="flex flex-col h-full bg-gradient-to-br from-background via-background to-accent/5">
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-          <div className="max-w-2xl w-full space-y-8">
-            {/* Hero */}
-            <div className="text-center space-y-4">
-              <h1 className="text-4xl font-bold tracking-tight text-foreground">
-                What can I do for you?
-              </h1>
-              <p className="text-base text-muted-foreground max-w-lg mx-auto">
-                Powered by local {selectedModel} and your Claude subscription. Execute commands, manage files, browse the web, and more.
-              </p>
-            </div>
+      <div className="flex h-full flex-col bg-background">
+        <div className="flex flex-1 flex-col items-center justify-start overflow-y-auto px-6 pb-16 pt-24">
+          <div className="w-full max-w-[668px]">
+            <h1 className="text-center font-serif text-[4.1rem] font-medium tracking-[-0.06em] text-foreground">
+              What can I do for you?
+            </h1>
 
-            {/* Ollama Status Warning */}
-            {provider === "ollama" && !isOllamaReady && (
-              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
-                <p className="font-medium">Ollama is not running</p>
-                <p className="text-xs text-orange-700 mt-1">Start it with: <code className="bg-orange-100 px-2 py-1 rounded">ollama serve</code></p>
-              </div>
-            )}
-
-            {/* Provider Selector */}
-            <div className="flex justify-center">
-              <div className="flex rounded-lg border border-border bg-card p-1 shadow-sm">
-                <button
-                  onClick={() => setProvider("ollama")}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
-                    provider === "ollama"
-                      ? "bg-orange-500/10 text-orange-600 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Cpu className="h-4 w-4" />
-                  Local
-                </button>
-                <button
-                  onClick={() => setProvider("claude")}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
-                    provider === "claude"
-                      ? "bg-violet-500/10 text-violet-600 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Zap className="h-4 w-4" />
-                  Claude
-                </button>
-              </div>
-            </div>
-
-            {/* Connector Icons */}
-            <div className="flex justify-center gap-3">
-              {[
-                { icon: Github, label: "GitHub", color: "text-slate-700" },
-                { icon: Instagram, label: "Instagram", color: "text-pink-600" },
-                { icon: CreditCard, label: "Stripe", color: "text-blue-600" },
-                { icon: MessageCircle, label: "Telegram", color: "text-sky-500" },
-                { icon: Plus, label: "Add connector", color: "text-muted-foreground" },
-              ].map((item, i) => (
-                <Tooltip key={i}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => item.label === "Add connector" && setLocation("/connectors")}
-                      className={cn(
-                        "h-10 w-10 rounded-lg border border-border hover:bg-accent transition-colors flex items-center justify-center",
-                        item.label === "Add connector" ? "bg-accent" : "bg-card"
-                      )}
-                    >
-                      <item.icon className={cn("h-5 w-5", item.color)} />
+            <div className="mt-10 overflow-hidden rounded-[24px] border border-border bg-card shadow-[0_3px_18px_rgba(15,23,42,0.05)] manus-input-glow">
+              <div className="p-4 pb-2">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Assign a task or ask anything"
+                  rows={4}
+                  spellCheck={false}
+                  autoFocus
+                  className="relative z-10 min-h-[118px] w-full resize-none border-0 bg-transparent px-1 py-1 text-[16px] leading-7 text-foreground caret-foreground outline-none placeholder:text-muted-foreground"
+                />
+                <div className="mt-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-accent">
+                      <Plus className="h-4 w-4" />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">{item.label}</TooltipContent>
-                </Tooltip>
-              ))}
+                    <div className="flex items-center gap-1">
+                      {connectorButtons.map((button, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={button.onClick}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-accent"
+                        >
+                          <button.icon className="h-4 w-4" />
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => setLocation("/scheduled")} className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:bg-accent">
+                        <Monitor className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent">
+                      <Volume2 className="h-4 w-4" />
+                    </button>
+                    <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent">
+                      <Mic className="h-4 w-4" />
+                    </button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      disabled={!input.trim() || !canSend}
+                      onClick={handleSend}
+                      className="h-8 w-8 rounded-full bg-accent text-muted-foreground shadow-none hover:bg-foreground hover:text-background"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-[#d9eafc] bg-[#eef6ff] px-4 py-2.5 text-sm text-[#54677d]">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-[#4787e8]" />
+                  <span>Your task on Forge Desktop consumes <span className="font-semibold">50% fewer credits</span></span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button type="button" className="font-medium text-[#2c7be5]">Download now</button>
+                  <button type="button" className="text-[#73859b]">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Quick Action Chips */}
-            <div className="flex flex-wrap justify-center gap-2">
-              {[
-                { icon: Lightbulb, label: "Create slides" },
-                { icon: Code, label: "Build website" },
-                { icon: Zap, label: "Desktop apps" },
-                { icon: Palette, label: "Design" },
-              ].map((action, i) => (
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              {quickActions.map((action, i) => (
                 <button
                   key={i}
-                  className="px-3 py-1.5 rounded-full border border-border bg-card hover:bg-accent text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => setInput(action.prompt)}
+                  className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground/80 shadow-[0_1px_2px_rgba(15,23,42,0.02)] hover:bg-accent"
                 >
                   <action.icon className="h-3.5 w-3.5" />
                   {action.label}
@@ -351,62 +378,34 @@ export default function Home({ conversationId }: { conversationId?: string }) {
               ))}
             </div>
 
-            {/* Bottom Customization Card */}
-            <div className="mt-8 p-6 rounded-xl border border-border bg-card/50 backdrop-blur-sm">
-              <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Sparkles className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-1">Customize your AI agent</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    A distinct identity that grows with your business.
+            <div className="mx-auto mt-32 max-w-[500px] rounded-[18px] border border-border bg-[#f3f2ef] p-4 shadow-[0_3px_16px_rgba(15,23,42,0.04)]">
+              <div className="grid grid-cols-[1.25fr_0.75fr] gap-4">
+                <div>
+                  <h3 className="text-[1.15rem] font-semibold leading-6 tracking-[-0.03em] text-foreground">
+                    Download Forge for Windows or macOS
+                  </h3>
+                  <p className="mt-2 text-[15px] leading-6 text-muted-foreground">
+                    Access local files and work seamlessly with your desktop.
                   </p>
-                  <button
-                    onClick={() => setLocation("/settings")}
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    Connect Claude account →
-                  </button>
+                </div>
+                <div className="rounded-[14px] border border-border bg-white p-3">
+                  <div className="mb-2 flex gap-1">
+                    <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
+                    <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
+                    <span className="h-2 w-2 rounded-full bg-[#22c55e]" />
+                  </div>
+                  <div className="rounded-[10px] border border-border bg-background p-3">
+                    <div className="font-serif text-sm tracking-[-0.03em] text-foreground">What can I do for you?</div>
+                  </div>
                 </div>
               </div>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/35" />
+                <span className="h-2 w-2 rounded-full bg-border" />
+                <span className="h-2 w-2 rounded-full bg-border" />
+                <span className="h-2 w-2 rounded-full bg-border" />
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Input */}
-        <div className="p-4 border-t border-border bg-background/95 backdrop-blur-sm shrink-0">
-          <div className="max-w-3xl mx-auto">
-            <form
-              onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-              className="flex gap-2 items-end"
-            >
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Assign a task or ask anything..."
-                className="flex-1 max-h-32 resize-none min-h-[44px] bg-card border-border text-sm"
-                rows={1}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={!input.trim() || !canSend}
-                className="shrink-0 h-[44px] w-[44px]"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
-            {!canSend && (
-              <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-1.5">
-                {provider === "ollama"
-                  ? "Ollama is offline. Run `ollama serve` to start."
-                  : "Claude not connected. Configure in Settings → Claude."
-                }
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -423,34 +422,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
             {conversation?.title || "Chat"}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-border bg-accent/20 p-0.5">
-            <button
-              onClick={() => setProvider("ollama")}
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all",
-                provider === "ollama"
-                  ? "bg-orange-500/15 text-orange-600 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Cpu className="h-3 w-3" />
-              Local
-            </button>
-            <button
-              onClick={() => setProvider("claude")}
-              className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all",
-                provider === "claude"
-                  ? "bg-violet-500/15 text-violet-600 shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Zap className="h-3 w-3" />
-              Claude
-            </button>
-          </div>
-        </div>
+        <div />
       </div>
 
       {/* Messages */}
@@ -512,32 +484,6 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                       <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                     )}
 
-                    {msg.role === "assistant" && (msg.tokenCount || msg.durationMs) && (
-                      <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/20">
-                        {msg.model && (
-                          <Badge variant="outline" className="text-[9px] h-4">
-                            {msg.model}
-                          </Badge>
-                        )}
-                        {msg.tokensPerSecond && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <Zap className="h-2.5 w-2.5" />
-                            {msg.tokensPerSecond} tok/s
-                          </span>
-                        )}
-                        {msg.tokenCount && (
-                          <span className="text-[10px] text-muted-foreground">
-                            {msg.tokenCount} tokens
-                          </span>
-                        )}
-                        {msg.durationMs && (
-                          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-2.5 w-2.5" />
-                            {(msg.durationMs / 1000).toFixed(1)}s
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   {msg.role === "user" && (
@@ -588,22 +534,6 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/20">
-                      <Badge variant="outline" className="text-[9px] h-4">
-                        {provider === "claude" ? claudeStatus?.model : selectedModel}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Zap className="h-2.5 w-2.5 text-amber-500" />
-                        {liveTps} tok/s
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {streaming.tokenCount} tokens
-                      </span>
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5" />
-                        {elapsed.toFixed(1)}s
-                      </span>
-                    </div>
                   </div>
                 </div>
               </>
@@ -639,7 +569,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={provider === "claude" ? "Ask Claude..." : "Ask anything..."}
+              placeholder="Ask anything..."
               className="flex-1 max-h-32 resize-none min-h-[44px] bg-card border-border text-sm"
               rows={1}
               disabled={streaming.active}
@@ -667,10 +597,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
           </form>
           {!canSend && !streaming.active && (
             <p className="text-[10px] text-amber-600 dark:text-amber-500 mt-1.5">
-              {provider === "ollama"
-                ? "Ollama is offline. Run `ollama serve` to start."
-                : "Claude not connected. Configure in Settings → Claude."
-              }
+              Add a valid NVIDIA API key to start chatting.
             </p>
           )}
         </div>

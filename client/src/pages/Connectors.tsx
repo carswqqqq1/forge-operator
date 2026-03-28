@@ -8,16 +8,31 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Link2, Plus, Trash2, MessageCircle, Youtube, Mail, Globe, Webhook } from "lucide-react";
+import { Link2, Plus, Trash2, MessageCircle, Youtube, Mail, Globe, Webhook, Github, Slack, Calendar, Database, CreditCard, FileText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 const connectorTypes = [
+  { value: "github", label: "GitHub", icon: Github },
+  { value: "slack", label: "Slack", icon: Slack },
+  { value: "google-drive", label: "Google Drive", icon: FileText },
+  { value: "google-calendar", label: "Google Calendar", icon: Calendar },
+  { value: "stripe", label: "Stripe", icon: CreditCard },
+  { value: "notion", label: "Notion", icon: Database },
   { value: "telegram", label: "Telegram", icon: MessageCircle },
   { value: "youtube", label: "YouTube", icon: Youtube },
   { value: "email", label: "Email", icon: Mail },
   { value: "webhook", label: "Webhook", icon: Webhook },
   { value: "api", label: "Custom API", icon: Globe },
+];
+
+const connectorPresets = [
+  { name: "GitHub Workspace", type: "github", config: { scopes: ["repo", "issues:read", "pull_requests:read"] } },
+  { name: "Slack Workspace", type: "slack", config: { scopes: ["channels:history", "chat:write"] } },
+  { name: "Google Drive", type: "google-drive", config: { scopes: ["drive.readonly", "docs.readonly"] } },
+  { name: "Google Calendar", type: "google-calendar", config: { scopes: ["calendar.readonly"] } },
+  { name: "Stripe Billing", type: "stripe", config: { mode: "billing" } },
+  { name: "Notion Knowledge Base", type: "notion", config: { content_source: "workspace" } },
 ];
 
 export default function Connectors() {
@@ -31,6 +46,21 @@ export default function Connectors() {
   const getIcon = (type: string) => {
     const ct = connectorTypes.find(c => c.value === type);
     return ct ? <ct.icon className="h-4 w-4" /> : <Globe className="h-4 w-4" />;
+  };
+
+  const existingConnectorTypes = new Set((connectors || []).map((connector) => connector.type));
+
+  const handleQuickConnect = (preset: typeof connectorPresets[number]) => {
+    if (existingConnectorTypes.has(preset.type)) {
+      toast.message(`${preset.name} is already connected`);
+      return;
+    }
+
+    createConnector.mutate({
+      name: preset.name,
+      type: preset.type,
+      config: JSON.stringify(preset.config, null, 2),
+    });
   };
 
   return (
@@ -67,6 +97,52 @@ export default function Connectors() {
               </div>
             </DialogContent>
           </Dialog>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">Quick connect</h2>
+            <p className="mt-1 text-xs text-muted-foreground">One-click starter connectors for the services Forge is expected to use most.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {connectorPresets.map((preset) => {
+              const connectorType = connectorTypes.find((type) => type.value === preset.type);
+              const Icon = connectorType?.icon || Globe;
+              const connected = existingConnectorTypes.has(preset.type);
+
+              return (
+                <Card key={preset.type} className="border-border/50 bg-card">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{preset.name}</div>
+                          <div className="text-xs text-muted-foreground">{connectorType?.label || preset.type}</div>
+                        </div>
+                      </div>
+                      <Badge variant={connected ? "secondary" : "outline"} className="text-[10px]">
+                        {connected ? "Connected" : "Ready"}
+                      </Badge>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        type="button"
+                        variant={connected ? "secondary" : "default"}
+                        className="w-full"
+                        disabled={createConnector.isPending || connected}
+                        onClick={() => handleQuickConnect(preset)}
+                      >
+                        {connected ? "Already added" : "Connect"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
 
         <div className="grid gap-3">

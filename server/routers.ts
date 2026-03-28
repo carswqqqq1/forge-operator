@@ -66,6 +66,17 @@ export const appRouter = router({
     }),
   }),
 
+  usage: router({
+    state: publicProcedure.query(async () => {
+      return db.getUsageState();
+    }),
+    setTier: publicProcedure
+      .input(z.object({ tier: z.enum(["lite", "core", "max"]) }))
+      .mutation(async ({ input }) => {
+        return db.setSelectedTier(input.tier);
+      }),
+  }),
+
   // ─── Conversations ───────────────────────────────────────────────
   conversations: router({
     list: publicProcedure.query(async () => {
@@ -115,6 +126,22 @@ export const appRouter = router({
       .input(z.object({ conversationId: z.number() }))
       .query(async ({ input }) => {
         return db.getMessages(input.conversationId);
+      }),
+    create: publicProcedure
+      .input(z.object({
+        conversationId: z.number(),
+        content: z.string(),
+        model: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const message = await db.addMessage({
+          conversationId: input.conversationId,
+          role: "user",
+          content: input.content,
+          model: input.model || null,
+        });
+
+        return { success: true, id: message.id };
       }),
     send: publicProcedure
       .input(z.object({

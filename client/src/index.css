@@ -41,13 +41,14 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
 }
 
 /* ─── Light Theme — Manus-inspired warm cream ─── */
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.975 0.003 80);
+  --background: oklch(0.978 0.002 85);
   --foreground: oklch(0.18 0.01 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.01 260);
@@ -55,23 +56,23 @@
   --popover-foreground: oklch(0.18 0.01 260);
   --primary: oklch(0.45 0.01 260);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.955 0.005 80);
+  --secondary: oklch(0.962 0.003 85);
   --secondary-foreground: oklch(0.35 0.01 260);
-  --muted: oklch(0.955 0.005 80);
+  --muted: oklch(0.962 0.003 85);
   --muted-foreground: oklch(0.50 0.01 260);
-  --accent: oklch(0.94 0.008 80);
+  --accent: oklch(0.948 0.006 85);
   --accent-foreground: oklch(0.18 0.01 260);
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.90 0.005 80);
-  --input: oklch(0.92 0.005 80);
+  --border: oklch(0.905 0.004 85);
+  --input: oklch(0.925 0.004 85);
   --ring: oklch(0.45 0.01 260);
   --chart-1: oklch(0.55 0.18 250);
   --chart-2: oklch(0.60 0.16 170);
   --chart-3: oklch(0.55 0.20 300);
   --chart-4: oklch(0.65 0.15 80);
   --chart-5: oklch(0.60 0.18 30);
-  --sidebar: oklch(0.97 0.003 80);
+  --sidebar: oklch(0.965 0.003 85);
   --sidebar-foreground: oklch(0.25 0.01 260);
   --sidebar-primary: oklch(0.45 0.01 260);
   --sidebar-primary-foreground: oklch(1 0 0);
@@ -122,6 +123,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -221,5 +223,9 @@
   /* Manus-style input focus glow */
   .manus-input-glow:focus-within {
     box-shadow: 0 0 0 1px oklch(0.45 0.01 260 / 20%), 0 2px 12px oklch(0.45 0.01 260 / 8%);
+  }
+
+  .font-serif {
+    font-family: var(--font-serif);
   }
 }

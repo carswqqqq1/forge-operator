@@ -45,6 +45,71 @@ Use that folder as the primary UI reference when tightening the app toward Manus
    - Express + tRPC backend
    - Drizzle schema and migrations
    - Ollama, Claude, and NVIDIA integrations
+4. The current local work added a working Forge-flavored auth and usage layer on top of that stack.
+
+## What Has Been Completed In This Pass
+
+### Login / Auth
+
+- `/login` is now a standalone page outside the main app shell.
+- The auth page was rebuilt to match the Manus login structure much more closely:
+  - dotted background
+  - centered auth panel
+  - social sign-in buttons
+  - email input
+  - Cloudflare Turnstile area
+- Social buttons now actually work in local/dev:
+  - if `VITE_OAUTH_PORTAL_URL` and `VITE_APP_ID` are configured, login can hand off to the external OAuth portal
+  - if those env vars are missing, the page falls back to a local dev login endpoint that creates a session cookie and signs the user in anyway
+- New backend auth endpoint:
+  - `/api/auth/dev-login`
+  - implemented in [server/_core/oauth.ts](/Users/carsonweso/Documents/Forge/server/_core/oauth.ts)
+
+### Messaging / Chat
+
+- New task now routes back to the empty home composer.
+- Sending a prompt from the home composer creates a new conversation and carries the pending prompt into that chat.
+- Message sending now works across newly created chats, not just one manually tested thread.
+- NVIDIA fallback is active when local Ollama models are missing or unavailable.
+- NVIDIA fallback now instructs the assistant to answer in English by default.
+- Assistant bubbles no longer show raw model names, token counts, or throughput stats.
+
+### Credits / Tiering
+
+- Backend credit tracking now exists in the local store:
+  - credit balance
+  - selected tier
+  - recent usage events
+- Assistant responses now consume credits based on:
+  - tier
+  - token count
+- `Lite`, `Core`, and `Max` tier model mapping exists in [server/_core/index.ts](/Users/carsonweso/Documents/Forge/server/_core/index.ts)
+- Top-right credits pill now reads from usage state instead of a hardcoded number.
+- Header model selector now persists the chosen tier through the usage router.
+- A new billing page was added:
+  - [client/src/pages/Billing.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Billing.tsx)
+  - route: `/billing`
+
+### Connectors
+
+- The connectors screen is no longer just a generic JSON form.
+- Quick-connect cards were added for:
+  - GitHub
+  - Slack
+  - Google Drive
+  - Google Calendar
+  - Stripe
+  - Notion
+- Clicking `Connect` now creates a starter connector record for that platform.
+- Main file:
+  - [client/src/pages/Connectors.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Connectors.tsx)
+
+### Home / Shell Polish
+
+- Home composer action icons now route to real destinations instead of doing nothing.
+- Quick action chips now inject starter prompts into the composer.
+- Old Local / Claude header clutter has been removed from the chat surface.
+- The login logo/wordmark were tuned closer to the Manus auth reference while staying Forge-branded.
 
 ## Current Working Commands
 
@@ -85,6 +150,9 @@ Key frontend files:
 
 - [client/src/App.tsx](/Users/carsonweso/Documents/Forge/client/src/App.tsx)
 - [client/src/pages/Home.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Home.tsx)
+- [client/src/pages/Login.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Login.tsx)
+- [client/src/pages/Billing.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Billing.tsx)
+- [client/src/pages/Connectors.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Connectors.tsx)
 - [client/src/components/AppLayout.tsx](/Users/carsonweso/Documents/Forge/client/src/components/AppLayout.tsx)
 - [client/src/components/AIChatBox.tsx](/Users/carsonweso/Documents/Forge/client/src/components/AIChatBox.tsx)
 - [client/src/index.css](/Users/carsonweso/Documents/Forge/client/src/index.css)
@@ -129,9 +197,10 @@ If another AI picks this up, the best next steps are:
    - [client/src/components/AppLayout.tsx](/Users/carsonweso/Documents/Forge/client/src/components/AppLayout.tsx)
    - [client/src/components/AIChatBox.tsx](/Users/carsonweso/Documents/Forge/client/src/components/AIChatBox.tsx)
 2. Tighten the shell, composer, model selector, usage page, and auth screens toward Manus.
-3. Verify all sidebar routes and buttons actually work.
-4. Validate Ollama, Claude, and NVIDIA flows from the live UI.
-5. Clean up any stale leftover directories from the old monorepo approach if they are no longer needed.
+3. Replace the local dev-login fallback with fully real provider OAuth flows if production auth is required.
+4. Validate all sidebar routes and action buttons from the live UI.
+5. Continue replacing placeholder routes/pages with richer product surfaces.
+6. Clean up any stale leftover directories from the old monorepo approach if they are no longer needed.
 
 ## Notes For The Next AI
 
@@ -139,3 +208,4 @@ If another AI picks this up, the best next steps are:
 - The repo README now describes the local Manus agent implementation and is consistent with the current root package scripts.
 - The screenshot folder is untracked local reference material unless the user asks to commit it.
 - The user wants the UI and behavior to get as close to Manus as safely possible.
+- The repo now has meaningful uncommitted local improvements that should be reviewed before any reset or branch change.

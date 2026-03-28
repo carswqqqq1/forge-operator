@@ -1,5 +1,7 @@
 import { eq, desc, sql, like, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   InsertUser, users,
   conversations, InsertConversation,
@@ -18,6 +20,60 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+const LOCAL_DATA_DIR = path.join(process.cwd(), ".forge-data");
+const LOCAL_DATA_FILE = path.join(LOCAL_DATA_DIR, "local-db.json");
+
+type LocalStore = {
+  conversations: Array<any>;
+  messages: Array<any>;
+  toolExecutions: Array<any>;
+  memories: Array<any>;
+  usageEvents: Array<any>;
+  appState: {
+    credits: number;
+    selectedTier: "lite" | "core" | "max";
+  };
+  counters: {
+    conversations: number;
+    messages: number;
+    toolExecutions: number;
+    memories: number;
+    usageEvents: number;
+  };
+};
+
+const defaultStore = (): LocalStore => ({
+  conversations: [],
+  messages: [],
+  toolExecutions: [],
+  memories: [],
+  usageEvents: [],
+  appState: {
+    credits: 851,
+    selectedTier: "max",
+  },
+  counters: {
+    conversations: 0,
+    messages: 0,
+    toolExecutions: 0,
+    memories: 0,
+    usageEvents: 0,
+  },
+});
+
+async function readLocalStore(): Promise<LocalStore> {
+  try {
+    const raw = await fs.readFile(LOCAL_DATA_FILE, "utf8");
+    return { ...defaultStore(), ...JSON.parse(raw) } as LocalStore;
+  } catch {
+    return defaultStore();
+  }
+}
+
+async function writeLocalStore(store: LocalStore) {
+  await fs.mkdir(LOCAL_DATA_DIR, { recursive: true });
+  await fs.writeFile(LOCAL_DATA_FILE, JSON.stringify(store, null, 2), "utf8");
+}
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -68,33 +124,71 @@ export async function getUserByOpenId(openId: string) {
 // ─── Conversations ───────────────────────────────────────────────────
 export async function createConversation(data: InsertConversation) {
   const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  if (!db) {
+    const store = await readLocalStore();
+    const id = ++store.counters.conversations;
+    const now = new Date().toISOString();
+    store.conversations.push({
+      id,
+      title: data.title ?? "New Conversation",
+      model: data.model ?? "llama3",
+      systemPrompt: data.systemPrompt ?? null,
+      isArchived: data.isArchived ?? false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await writeLocalStore(store);
+    return { id };
+  }
   const result = await db.insert(conversations).values(data);
   return { id: result[0].insertId };
 }
 
 export async function listConversations(limit = 50) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    const store = await readLocalStore();
+    return [...store.conversations]
+      .filter((conversation) => !conversation.isArchived)
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+      .slice(0, limit);
+  }
   return db.select().from(conversations).where(eq(conversations.isArchived, false)).orderBy(desc(conversations.updatedAt)).limit(limit);
 }
 
 export async function getConversation(id: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) {
+    const store = await readLocalStore();
+    return store.conversations.find((conversation) => conversation.id === id) || null;
+  }
   const result = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
   return result[0] || null;
 }
 
 export async function updateConversation(id: number, data: Partial<InsertConversation>) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    const store = await readLocalStore();
+    const conversation = store.conversations.find((entry) => entry.id === id);
+    if (!conversation) return;
+    Object.assign(conversation, data, { updatedAt: new Date().toISOString() });
+    await writeLocalStore(store);
+    return;
+  }
   await db.update(conversations).set(data).where(eq(conversations.id, id));
 }
 
 export async function deleteConversation(id: number) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    const store = await readLocalStore();
+    store.messages = store.messages.filter((message) => message.conversationId !== id);
+    store.toolExecutions = store.toolExecutions.filter((execution) => execution.conversationId !== id);
+    store.conversations = store.conversations.filter((conversation) => conversation.id !== id);
+    await writeLocalStore(store);
+    return;
+  }
   await db.delete(messages).where(eq(messages.conversationId, id));
   await db.delete(toolExecutions).where(eq(toolExecutions.conversationId, id));
   await db.delete(conversations).where(eq(conversations.id, id));
@@ -103,7 +197,28 @@ export async function deleteConversation(id: number) {
 // ─── Messages ────────────────────────────────────────────────────────
 export async function addMessage(data: InsertMessage) {
   const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  if (!db) {
+    const store = await readLocalStore();
+    const id = ++store.counters.messages;
+    const now = new Date().toISOString();
+    store.messages.push({
+      id,
+      conversationId: data.conversationId,
+      role: data.role,
+      content: data.content,
+      model: data.model ?? null,
+      tokenCount: data.tokenCount ?? null,
+      durationMs: data.durationMs ?? null,
+      tokensPerSecond: data.tokensPerSecond ?? null,
+      createdAt: now,
+    });
+    const conversation = store.conversations.find((entry) => entry.id === data.conversationId);
+    if (conversation) {
+      conversation.updatedAt = now;
+    }
+    await writeLocalStore(store);
+    return { id };
+  }
   const result = await db.insert(messages).values(data);
   // Update conversation timestamp
   if (data.conversationId) {
@@ -114,27 +229,60 @@ export async function addMessage(data: InsertMessage) {
 
 export async function getMessages(conversationId: number) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    const store = await readLocalStore();
+    return store.messages
+      .filter((message) => message.conversationId === conversationId)
+      .sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+  }
   return db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
 }
 
 // ─── Tool Executions ─────────────────────────────────────────────────
 export async function logToolExecution(data: InsertToolExecution) {
   const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  if (!db) {
+    const store = await readLocalStore();
+    const id = ++store.counters.toolExecutions;
+    store.toolExecutions.push({
+      id,
+      conversationId: data.conversationId ?? null,
+      messageId: data.messageId ?? null,
+      toolName: data.toolName,
+      toolInput: data.toolInput,
+      toolOutput: data.toolOutput ?? null,
+      status: data.status ?? "running",
+      durationMs: data.durationMs ?? null,
+      createdAt: new Date().toISOString(),
+    });
+    await writeLocalStore(store);
+    return { id };
+  }
   const result = await db.insert(toolExecutions).values(data);
   return { id: result[0].insertId };
 }
 
 export async function updateToolExecution(id: number, data: Partial<InsertToolExecution>) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    const store = await readLocalStore();
+    const execution = store.toolExecutions.find((entry) => entry.id === id);
+    if (!execution) return;
+    Object.assign(execution, data);
+    await writeLocalStore(store);
+    return;
+  }
   await db.update(toolExecutions).set(data).where(eq(toolExecutions.id, id));
 }
 
 export async function getToolExecutions(limit = 100) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    const store = await readLocalStore();
+    return [...store.toolExecutions]
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+      .slice(0, limit);
+  }
   return db.select().from(toolExecutions).orderBy(desc(toolExecutions.createdAt)).limit(limit);
 }
 
@@ -159,6 +307,69 @@ export async function getToolStats() {
     avgDuration: Math.round(avgDur[0]?.avg || 0),
     byTool,
   };
+}
+
+// ─── Credits / Usage ────────────────────────────────────────────────
+export async function getUsageState() {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    return {
+      credits: store.appState.credits,
+      selectedTier: store.appState.selectedTier,
+      recentEvents: [...store.usageEvents].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 20),
+    };
+  }
+
+  return {
+    credits: 851,
+    selectedTier: "max" as const,
+    recentEvents: [],
+  };
+}
+
+export async function setSelectedTier(tier: "lite" | "core" | "max") {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    store.appState.selectedTier = tier;
+    await writeLocalStore(store);
+    return { success: true };
+  }
+
+  return { success: true };
+}
+
+export async function consumeCredits(input: {
+  amount: number;
+  tier: "lite" | "core" | "max";
+  model: string;
+  tokenCount: number;
+  conversationId?: number | null;
+  note?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    const nextCredits = Math.max(0, Number((store.appState.credits - input.amount).toFixed(1)));
+    store.appState.credits = nextCredits;
+    const id = ++store.counters.usageEvents;
+    store.usageEvents.push({
+      id,
+      amount: input.amount,
+      tier: input.tier,
+      model: input.model,
+      tokenCount: input.tokenCount,
+      conversationId: input.conversationId ?? null,
+      note: input.note ?? null,
+      balanceAfter: nextCredits,
+      createdAt: new Date().toISOString(),
+    });
+    await writeLocalStore(store);
+    return { credits: nextCredits };
+  }
+
+  return { credits: 851 };
 }
 
 // ─── System Prompts ──────────────────────────────────────────────────
@@ -230,13 +441,46 @@ export async function updateAgentStep(id: number, data: Partial<InsertAgentStep>
 // ─── Memory ──────────────────────────────────────────────────────────
 export async function storeMemory(category: string, key: string, value: string, source: string) {
   const db = await getDb();
-  if (!db) throw new Error("DB not available");
+  if (!db) {
+    const store = await readLocalStore();
+    const existing = store.memories.find((memory) => memory.category === category && memory.key === key);
+    const now = new Date().toISOString();
+    if (existing) {
+      existing.value = value;
+      existing.source = source;
+      existing.updatedAt = now;
+    } else {
+      const id = ++store.counters.memories;
+      store.memories.push({
+        id,
+        category,
+        key,
+        value,
+        source,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await writeLocalStore(store);
+    return;
+  }
   await db.insert(memories).values({ category, key, value, source });
 }
 
 export async function recallMemory(category?: string, search?: string) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    const store = await readLocalStore();
+    const normalizedSearch = search?.toLowerCase();
+    return store.memories
+      .filter((memory) => !category || memory.category === category)
+      .filter((memory) => {
+        if (!normalizedSearch) return true;
+        return memory.key.toLowerCase().includes(normalizedSearch) || memory.value.toLowerCase().includes(normalizedSearch);
+      })
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+      .slice(0, 20);
+  }
   const conditions = [];
   if (category) conditions.push(eq(memories.category, category));
   if (search) conditions.push(sql`(${memories.key} LIKE ${`%${search}%`} OR ${memories.value} LIKE ${`%${search}%`})`);
