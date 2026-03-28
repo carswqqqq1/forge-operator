@@ -30,8 +30,8 @@
       "loginMethod": "google",
       "role": "user",
       "createdAt": "2026-03-28T00:53:37.654Z",
-      "updatedAt": "2026-03-28T01:21:11.964Z",
-      "lastSignedIn": "2026-03-28T01:21:11.964Z"
+      "updatedAt": "2026-03-28T01:38:51.374Z",
+      "lastSignedIn": "2026-03-28T01:38:51.373Z"
     },
     {
       "id": 4,
@@ -45,19 +45,43 @@
       "lastSignedIn": "2026-03-28T01:03:16.465Z"
     }
   ],
-  "conversations": [],
-  "messages": [],
+  "conversations": [
+    {
+      "id": 1,
+      "userId": 3,
+      "title": "New Conversation",
+      "model": "meta/llama-3.1-70b-instruct",
+      "systemPrompt": null,
+      "isArchived": false,
+      "createdAt": "2026-03-28T01:38:47.880Z",
+      "updatedAt": "2026-03-28T01:38:48.015Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": 1,
+      "userId": 3,
+      "conversationId": 1,
+      "role": "user",
+      "content": "Yo?",
+      "model": "meta/llama-3.1-70b-instruct",
+      "tokenCount": null,
+      "durationMs": null,
+      "tokensPerSecond": null,
+      "createdAt": "2026-03-28T01:38:48.015Z"
+    }
+  ],
   "toolExecutions": [],
   "memories": [],
   "usageEvents": [],
   "appState": {
     "credits": 851,
-    "selectedTier": "max"
+    "selectedTier": "lite"
   },
   "counters": {
     "users": 4,
-    "conversations": 0,
-    "messages": 0,
+    "conversations": 1,
+    "messages": 1,
     "toolExecutions": 0,
     "memories": 0,
     "usageEvents": 0
