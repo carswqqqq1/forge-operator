@@ -24,6 +24,7 @@ const LOCAL_DATA_DIR = path.join(process.cwd(), ".forge-data");
 const LOCAL_DATA_FILE = path.join(LOCAL_DATA_DIR, "local-db.json");
 
 type LocalStore = {
+  users: Array<any>;
   conversations: Array<any>;
   messages: Array<any>;
   toolExecutions: Array<any>;
@@ -34,6 +35,7 @@ type LocalStore = {
     selectedTier: "lite" | "core" | "max";
   };
   counters: {
+    users: number;
     conversations: number;
     messages: number;
     toolExecutions: number;
@@ -43,6 +45,7 @@ type LocalStore = {
 };
 
 const defaultStore = (): LocalStore => ({
+  users: [],
   conversations: [],
   messages: [],
   toolExecutions: [],
@@ -53,6 +56,7 @@ const defaultStore = (): LocalStore => ({
     selectedTier: "max",
   },
   counters: {
+    users: 0,
     conversations: 0,
     messages: 0,
     toolExecutions: 0,
@@ -91,7 +95,32 @@ export async function getDb() {
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
-  if (!db) return;
+  if (!db) {
+    const store = await readLocalStore();
+    const existing = store.users.find((entry) => entry.openId === user.openId);
+    const now = new Date().toISOString();
+    if (existing) {
+      Object.assign(existing, {
+        ...user,
+        updatedAt: now,
+        lastSignedIn: user.lastSignedIn ?? existing.lastSignedIn ?? now,
+      });
+    } else {
+      store.users.push({
+        id: ++store.counters.users,
+        openId: user.openId,
+        name: user.name ?? null,
+        email: user.email ?? null,
+        loginMethod: user.loginMethod ?? null,
+        role: user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user"),
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: user.lastSignedIn ?? now,
+      });
+    }
+    await writeLocalStore(store);
+    return;
+  }
   try {
     const values: InsertUser = { openId: user.openId };
     const updateSet: Record<string, unknown> = {};
@@ -116,7 +145,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) {
+    const store = await readLocalStore();
+    return store.users.find((entry) => entry.openId === openId);
+  }
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }

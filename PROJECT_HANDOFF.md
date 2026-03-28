@@ -64,6 +64,10 @@ Use that folder as the primary UI reference when tightening the app toward Manus
 - New backend auth endpoint:
   - `/api/auth/dev-login`
   - implemented in [server/_core/oauth.ts](/Users/carsonweso/Documents/Forge/server/_core/oauth.ts)
+- Local login flow is now fully functional:
+  - dev auth cookies use `SameSite=Lax` on localhost instead of an invalid insecure `SameSite=None`
+  - local mode now stores users in `.forge-data` so `auth.me` can resolve signed-in sessions correctly
+  - login now forces a full redirect after success so the authenticated app boots cleanly
 
 ### Messaging / Chat
 
@@ -110,6 +114,12 @@ Use that folder as the primary UI reference when tightening the app toward Manus
 - Quick action chips now inject starter prompts into the composer.
 - Old Local / Claude header clutter has been removed from the chat surface.
 - The login logo/wordmark were tuned closer to the Manus auth reference while staying Forge-branded.
+
+### CI / GitHub
+
+- GitHub Actions CI was fixed.
+- The workflow previously pointed at a non-existent `forge/` subdirectory and used the wrong cache path.
+- It now installs and builds from the actual repo root with `pnpm`.
 
 ## Current Working Commands
 

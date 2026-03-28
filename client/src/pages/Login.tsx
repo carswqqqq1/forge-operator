@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { Input } from "@/components/ui/input";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { toast } from "sonner";
 
 declare global {
@@ -162,7 +162,6 @@ function TurnstileBox() {
 
 export default function Login() {
   const footerLabel = useMemo(() => "Forge Labs", []);
-  const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -181,7 +180,7 @@ export default function Login() {
         throw new Error("Sign-in failed");
       }
       toast.success(`Signed in with ${provider.charAt(0).toUpperCase()}${provider.slice(1)}`);
-      setLocation("/");
+      window.location.href = "/";
     } catch (error) {
       console.error(error);
       toast.error("Could not sign you in");
