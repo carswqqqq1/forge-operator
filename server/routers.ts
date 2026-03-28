@@ -12,15 +12,15 @@ import { executeTool, AVAILABLE_TOOLS } from "./tools";
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
     emailLogin: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(1), cfToken: z.string() }))
-      .mutation(async ({ input, ctx }) => {
+      .input(z.object({ email: z.string().email(), password: z.string().min(1), cfToken: z.string().optional() }))
+      .mutation(async ({ input }) => {
         const res = await fetch(`http://localhost:${process.env.PORT || 3000}/api/auth/email/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -31,7 +31,7 @@ export const appRouter = router({
         return data;
       }),
     emailRegister: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(8), cfToken: z.string() }))
+      .input(z.object({ email: z.string().email(), password: z.string().min(8), cfToken: z.string().optional() }))
       .mutation(async ({ input }) => {
         const res = await fetch(`http://localhost:${process.env.PORT || 3000}/api/auth/email/register`, {
           method: "POST",
@@ -44,43 +44,24 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Ollama ──────────────────────────────────────────────────────
   ollama: router({
-    health: publicProcedure.query(async () => {
-      return ollama.checkOllamaHealth();
-    }),
-    models: publicProcedure.query(async () => {
-      return ollama.listModels();
-    }),
-    modelDetails: publicProcedure
-      .input(z.object({ name: z.string() }))
-      .query(async ({ input }) => {
-        return ollama.showModel(input.name);
-      }),
-    url: publicProcedure.query(() => {
-      return ollama.getOllamaUrl();
-    }),
+    health: publicProcedure.query(async () => ollama.checkOllamaHealth()),
+    models: publicProcedure.query(async () => ollama.listModels()),
+    modelDetails: publicProcedure.input(z.object({ name: z.string() })).query(async ({ input }) => ollama.showModel(input.name)),
+    url: publicProcedure.query(() => ollama.getOllamaUrl()),
   }),
 
-  // ─── NVIDIA ───────────────────────────────────────────────────────
   nvidia: router({
-    models: publicProcedure.query(async () => {
-      return nvidia.NVIDIA_MODELS;
-    }),
+    models: publicProcedure.query(async () => nvidia.NVIDIA_MODELS),
     status: publicProcedure.query(async () => {
       const apiKey = process.env.NVIDIA_API_KEY;
-      return {
-        connected: !!apiKey,
-        apiKey: apiKey ? "***" : null,
-      };
+      return { connected: !!apiKey, apiKey: apiKey ? "***" : null };
     }),
     configure: publicProcedure
       .input(z.object({ apiKey: z.string() }))
       .mutation(async ({ input }) => {
         const valid = await nvidia.validateNVIDIAKey(input.apiKey);
-        if (!valid) {
-          throw new Error("Invalid NVIDIA API key");
-        }
+        if (!valid) throw new Error("Invalid NVIDIA API key");
         process.env.NVIDIA_API_KEY = input.apiKey;
         return { success: true };
       }),
@@ -91,36 +72,23 @@ export const appRouter = router({
   }),
 
   usage: router({
-    state: protectedProcedure.query(async () => {
-      return db.getUsageState();
-    }),
+    state: protectedProcedure.query(async () => db.getUsageState()),
     setTier: protectedProcedure
       .input(z.object({ tier: z.enum(["lite", "core", "max"]) }))
-      .mutation(async ({ input }) => {
-        return db.setSelectedTier(input.tier);
-      }),
+      .mutation(async ({ input }) => db.setSelectedTier(input.tier)),
   }),
 
-  // ─── Conversations ───────────────────────────────────────────────
   conversations: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return db.listConversations(ctx.user!.id);
-    }),
+    list: protectedProcedure.query(async ({ ctx }) => db.listConversations(ctx.user!.id)),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.id);
-        if (conv && conv.userId !== ctx.user!.id) {
-          throw new Error("Unauthorized");
-        }
+        if (conv && conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         return conv;
       }),
     create: protectedProcedure
-      .input(z.object({
-        title: z.string().optional(),
-        model: z.string().optional(),
-        systemPrompt: z.string().optional(),
-      }))
+      .input(z.object({ title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         return db.createConversation(ctx.user!.id, {
           userId: ctx.user!.id,
@@ -130,17 +98,10 @@ export const appRouter = router({
         });
       }),
     update: protectedProcedure
-      .input(z.object({
-        id: z.number(),
-        title: z.string().optional(),
-        model: z.string().optional(),
-        systemPrompt: z.string().optional(),
-      }))
+      .input(z.object({ id: z.number(), title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.id);
-        if (!conv || conv.userId !== ctx.user!.id) {
-          throw new Error("Unauthorized");
-        }
+        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         const { id, ...data } = input;
         await db.updateConversation(id, data);
         return { success: true };
@@ -149,36 +110,25 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.id);
-        if (!conv || conv.userId !== ctx.user!.id) {
-          throw new Error("Unauthorized");
-        }
+        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         await db.deleteConversation(input.id);
         return { success: true };
       }),
   }),
 
-  // ─── Messages ────────────────────────────────────────────────────
   messages: router({
     list: protectedProcedure
       .input(z.object({ conversationId: z.number() }))
       .query(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.conversationId);
-        if (!conv || conv.userId !== ctx.user!.id) {
-          throw new Error("Unauthorized");
-        }
+        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         return db.getMessages(input.conversationId);
       }),
     create: protectedProcedure
-      .input(z.object({
-        conversationId: z.number(),
-        content: z.string(),
-        model: z.string().optional(),
-      }))
+      .input(z.object({ conversationId: z.number(), content: z.string(), model: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.conversationId);
-        if (!conv || conv.userId !== ctx.user!.id) {
-          throw new Error("Unauthorized");
-        }
+        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         const message = await db.addMessage({
           userId: ctx.user!.id,
           conversationId: input.conversationId,
@@ -186,22 +136,14 @@ export const appRouter = router({
           content: input.content,
           model: input.model || null,
         });
-
         return { success: true, id: message.id };
       }),
   }),
 
-  // ─── Connectors ──────────────────────────────────────────────────
   connectors: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return db.listConnectors(ctx.user!.id);
-    }),
+    list: protectedProcedure.query(async ({ ctx }) => db.listConnectors(ctx.user!.id)),
     create: protectedProcedure
-      .input(z.object({
-        name: z.string(),
-        type: z.string(),
-        config: z.string().optional(),
-      }))
+      .input(z.object({ name: z.string(), type: z.string(), config: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         return db.createConnector(ctx.user!.id, {
           userId: ctx.user!.id,
@@ -214,24 +156,17 @@ export const appRouter = router({
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listConnectors(ctx.user!.id)).some((connector) => connector.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
         await db.deleteConnector(input.id);
         return { success: true };
       }),
   }),
 
-  // ─── Scheduled Tasks ─────────────────────────────────────────────
   scheduled: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return db.listScheduledTasks(ctx.user!.id);
-    }),
+    list: protectedProcedure.query(async ({ ctx }) => db.listScheduledTasks(ctx.user!.id)),
     create: protectedProcedure
-      .input(z.object({
-        name: z.string(),
-        description: z.string().optional(),
-        cronExpression: z.string().optional(),
-        prompt: z.string(),
-        model: z.string().optional(),
-      }))
+      .input(z.object({ name: z.string(), description: z.string().optional(), cronExpression: z.string().optional(), prompt: z.string(), model: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         return db.createScheduledTask(ctx.user!.id, {
           userId: ctx.user!.id,
@@ -244,25 +179,23 @@ export const appRouter = router({
         });
       }),
     update: protectedProcedure
-      .input(z.object({
-        id: z.number(),
-        isActive: z.boolean().optional(),
-      }))
+      .input(z.object({ id: z.number(), isActive: z.boolean().optional() }))
       .mutation(async ({ input, ctx }) => {
-        await db.updateScheduledTask(input.id, {
-          isActive: input.isActive,
-        });
+        const owned = (await db.listScheduledTasks(ctx.user!.id)).some((task) => task.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
+        await db.updateScheduledTask(input.id, { isActive: input.isActive });
         return { success: true };
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listScheduledTasks(ctx.user!.id)).some((task) => task.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
         await db.deleteScheduledTask(input.id);
         return { success: true };
       }),
   }),
 
-  // ─── Claude ────────────────────────────────────────────────────
   claude: router({
     status: publicProcedure.query(() => claude.getSessionStatus()),
     models: publicProcedure.query(() => claude.CLAUDE_MODELS),
@@ -275,13 +208,22 @@ export const appRouter = router({
     launchBrowser: protectedProcedure
       .input(z.object({ chromePath: z.string().optional(), userDataDir: z.string().optional(), headless: z.boolean().optional() }).optional())
       .mutation(async ({ input }) => claude.launchBrowser(input ?? {})),
-    closeBrowser: protectedProcedure.mutation(async () => { await claude.closeBrowser(); return { success: true }; }),
+    closeBrowser: protectedProcedure.mutation(async () => {
+      await claude.closeBrowser();
+      return { success: true };
+    }),
     setModel: protectedProcedure
       .input(z.object({ model: z.string() }))
-      .mutation(async ({ input }) => { claude.setClaudeModel(input.model); return { success: true }; }),
-    disconnect: protectedProcedure.mutation(async () => { claude.disconnect(); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        claude.setClaudeModel(input.model);
+        return { success: true };
+      }),
+    disconnect: protectedProcedure.mutation(async () => {
+      claude.disconnect();
+      return { success: true };
+    }),
   }),
-  // ─── Tools ───────────────────────────────────────────────────────
+
   tools: router({
     list: publicProcedure.query(() => AVAILABLE_TOOLS),
     stats: protectedProcedure.query(async ({ ctx }) => db.getToolExecutionStats(ctx.user!.id)),
@@ -291,6 +233,10 @@ export const appRouter = router({
     execute: protectedProcedure
       .input(z.object({ toolName: z.string(), toolInput: z.string(), conversationId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
+        if (input.conversationId != null) {
+          const conv = await db.getConversation(input.conversationId);
+          if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+        }
         const execRecord = await db.logToolExecution({
           userId: ctx.user!.id,
           conversationId: input.conversationId ?? null,
@@ -309,7 +255,7 @@ export const appRouter = router({
         }
       }),
   }),
-  // ─── Memory ──────────────────────────────────────────────────────
+
   memory: router({
     list: protectedProcedure.query(async ({ ctx }) => db.listAllMemories(ctx.user!.id)),
     store: protectedProcedure
@@ -320,9 +266,14 @@ export const appRouter = router({
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await db.deleteMemory(input.id); return { success: true }; }),
+      .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listAllMemories(ctx.user!.id)).some((memory) => memory.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
+        await db.deleteMemory(input.id);
+        return { success: true };
+      }),
   }),
-  // ─── Prompts ─────────────────────────────────────────────────────
+
   prompts: router({
     list: protectedProcedure.query(async ({ ctx }) => db.listPrompts(ctx.user!.id)),
     create: protectedProcedure
@@ -338,12 +289,23 @@ export const appRouter = router({
       }),
     update: protectedProcedure
       .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), content: z.string().optional(), isDefault: z.boolean().optional() }))
-      .mutation(async ({ input }) => { const { id, ...data } = input; await db.updatePrompt(id, data); return { success: true }; }),
+      .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listPrompts(ctx.user!.id)).some((prompt) => prompt.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
+        const { id, ...data } = input;
+        await db.updatePrompt(id, data);
+        return { success: true };
+      }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await db.deletePrompt(input.id); return { success: true }; }),
+      .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listPrompts(ctx.user!.id)).some((prompt) => prompt.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
+        await db.deletePrompt(input.id);
+        return { success: true };
+      }),
   }),
-  // ─── Skills ──────────────────────────────────────────────────────
+
   skills: router({
     list: protectedProcedure.query(async ({ ctx }) => db.listSkills(ctx.user!.id)),
     create: protectedProcedure
@@ -362,17 +324,18 @@ export const appRouter = router({
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await db.deleteSkill(input.id); return { success: true }; }),
+      .mutation(async ({ input, ctx }) => {
+        const owned = (await db.listSkills(ctx.user!.id)).some((skill) => skill.id === input.id);
+        if (!owned) throw new Error("Unauthorized");
+        await db.deleteSkill(input.id);
+        return { success: true };
+      }),
   }),
-  // ─── Research ────────────────────────────────────────────────────
+
   research: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return db.listResearchSessions(ctx.user!.id);
-    }),
+    list: protectedProcedure.query(async ({ ctx }) => db.listResearchSessions(ctx.user!.id)),
     create: protectedProcedure
-      .input(z.object({
-        query: z.string(),
-      }))
+      .input(z.object({ query: z.string() }))
       .mutation(async ({ input, ctx }) => {
         return db.createResearchSession(ctx.user!.id, {
           userId: ctx.user!.id,
