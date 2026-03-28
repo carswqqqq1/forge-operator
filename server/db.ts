@@ -16,6 +16,7 @@ import {
   scheduledTasks, InsertScheduledTask,
   researchSessions, InsertResearchSession,
   appSettings,
+  usageEvents, InsertUsageEvent,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -30,6 +31,7 @@ type LocalStore = {
   toolExecutions: Array<any>;
   memories: Array<any>;
   usageEvents: Array<any>;
+  connectors?: Array<any>;
   appState: {
     credits: number;
     selectedTier: "lite" | "core" | "max";
@@ -154,7 +156,7 @@ export async function getUserByOpenId(openId: string) {
 }
 
 // ─── Conversations ───────────────────────────────────────────────────
-export async function createConversation(data: InsertConversation) {
+export async function createConversation(userId: number, data: InsertConversation) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
@@ -162,6 +164,7 @@ export async function createConversation(data: InsertConversation) {
     const now = new Date().toISOString();
     store.conversations.push({
       id,
+      userId,
       title: data.title ?? "New Conversation",
       model: data.model ?? "llama3",
       systemPrompt: data.systemPrompt ?? null,
@@ -172,20 +175,20 @@ export async function createConversation(data: InsertConversation) {
     await writeLocalStore(store);
     return { id };
   }
-  const result = await db.insert(conversations).values(data);
+  const result = await db.insert(conversations).values({ ...data, userId });
   return { id: result[0].insertId };
 }
 
-export async function listConversations(limit = 50) {
+export async function listConversations(userId: number, limit = 50) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
     return [...store.conversations]
-      .filter((conversation) => !conversation.isArchived)
+      .filter((conversation) => conversation.userId === userId && !conversation.isArchived)
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
       .slice(0, limit);
   }
-  return db.select().from(conversations).where(eq(conversations.isArchived, false)).orderBy(desc(conversations.updatedAt)).limit(limit);
+  return db.select().from(conversations).where(and(eq(conversations.userId, userId), eq(conversations.isArchived, false))).orderBy(desc(conversations.updatedAt)).limit(limit);
 }
 
 export async function getConversation(id: number) {
@@ -235,6 +238,7 @@ export async function addMessage(data: InsertMessage) {
     const now = new Date().toISOString();
     store.messages.push({
       id,
+      userId: data.userId,
       conversationId: data.conversationId,
       role: data.role,
       content: data.content,
@@ -278,6 +282,7 @@ export async function logToolExecution(data: InsertToolExecution) {
     const id = ++store.counters.toolExecutions;
     store.toolExecutions.push({
       id,
+      userId: data.userId,
       conversationId: data.conversationId ?? null,
       messageId: data.messageId ?? null,
       toolName: data.toolName,
@@ -307,57 +312,72 @@ export async function updateToolExecution(id: number, data: Partial<InsertToolEx
   await db.update(toolExecutions).set(data).where(eq(toolExecutions.id, id));
 }
 
-export async function getToolExecutions(limit = 100) {
+// ─── Memory ──────────────────────────────────────────────────────────
+export async function storeMemory(userId: number, category: string, key: string, value: string, source: string) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
-    return [...store.toolExecutions]
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, limit);
+    const existing = store.memories.find((memory) => memory.userId === userId && memory.category === category && memory.key === key);
+    const now = new Date().toISOString();
+    if (existing) {
+      existing.value = value;
+      existing.source = source;
+      existing.updatedAt = now;
+    } else {
+      const id = ++store.counters.memories;
+      store.memories.push({
+        id,
+        userId,
+        category,
+        key,
+        value,
+        source,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await writeLocalStore(store);
+    return;
   }
-  return db.select().from(toolExecutions).orderBy(desc(toolExecutions.createdAt)).limit(limit);
+  await db.insert(memories).values({ userId, category, key, value, source });
 }
 
-export async function getToolStats() {
+export async function recallMemory(userId: number, search?: string) {
   const db = await getDb();
-  if (!db) return { total: 0, success: 0, error: 0, avgDuration: 0, byTool: [] };
-  const total = await db.select({ count: sql<number>`count(*)` }).from(toolExecutions);
-  const success = await db.select({ count: sql<number>`count(*)` }).from(toolExecutions).where(eq(toolExecutions.status, "success"));
-  const errors = await db.select({ count: sql<number>`count(*)` }).from(toolExecutions).where(eq(toolExecutions.status, "error"));
-  const avgDur = await db.select({ avg: sql<number>`COALESCE(AVG(durationMs), 0)` }).from(toolExecutions);
-  const byTool = await db.select({
-    toolName: toolExecutions.toolName,
-    count: sql<number>`count(*)`,
-    avgDuration: sql<number>`COALESCE(AVG(durationMs), 0)`,
-    successRate: sql<number>`ROUND(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) / COUNT(*) * 100, 1)`,
-  }).from(toolExecutions).groupBy(toolExecutions.toolName);
-
-  return {
-    total: total[0]?.count || 0,
-    success: success[0]?.count || 0,
-    error: errors[0]?.count || 0,
-    avgDuration: Math.round(avgDur[0]?.avg || 0),
-    byTool,
-  };
+  if (!db) {
+    const store = await readLocalStore();
+    const normalizedSearch = search?.toLowerCase();
+    return store.memories
+      .filter((memory) => memory.userId === userId)
+      .filter((memory) => {
+        if (!normalizedSearch) return true;
+        return memory.key.toLowerCase().includes(normalizedSearch) || memory.value.toLowerCase().includes(normalizedSearch);
+      })
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+      .slice(0, 20);
+  }
+  const conditions = [eq(memories.userId, userId)];
+  if (search) conditions.push(sql`(${memories.key} LIKE ${`%${search}%`} OR ${memories.value} LIKE ${`%${search}%`})`);
+  return db.select().from(memories).where(and(...conditions)).orderBy(desc(memories.updatedAt)).limit(20);
 }
 
-// ─── Credits / Usage ────────────────────────────────────────────────
+export async function listAllMemories(userId: number) {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    return store.memories.filter((m) => m.userId === userId).sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 100);
+  }
+  return db.select().from(memories).where(eq(memories.userId, userId)).orderBy(desc(memories.updatedAt)).limit(100);
+}
+
+// ─── Usage / Credits ─────────────────────────────────────────────────
 export async function getUsageState() {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
-    return {
-      credits: store.appState.credits,
-      selectedTier: store.appState.selectedTier,
-      recentEvents: [...store.usageEvents].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, 20),
-    };
+    return store.appState;
   }
-
-  return {
-    credits: 851,
-    selectedTier: "max" as const,
-    recentEvents: [],
-  };
+  return { credits: 851, selectedTier: "max" as const };
 }
 
 export async function setSelectedTier(tier: "lite" | "core" | "max") {
@@ -368,11 +388,11 @@ export async function setSelectedTier(tier: "lite" | "core" | "max") {
     await writeLocalStore(store);
     return { success: true };
   }
-
   return { success: true };
 }
 
 export async function consumeCredits(input: {
+  userId: number;
   amount: number;
   tier: "lite" | "core" | "max";
   model: string;
@@ -388,17 +408,32 @@ export async function consumeCredits(input: {
     const id = ++store.counters.usageEvents;
     store.usageEvents.push({
       id,
-      amount: input.amount,
+      userId: input.userId,
       tier: input.tier,
       model: input.model,
       tokenCount: input.tokenCount,
+      creditCost: input.amount,
       conversationId: input.conversationId ?? null,
       note: input.note ?? null,
-      balanceAfter: nextCredits,
       createdAt: new Date().toISOString(),
     });
     await writeLocalStore(store);
     return { credits: nextCredits };
+  }
+
+  // Insert into usage_events table
+  try {
+    await db.insert(usageEvents).values({
+      userId: input.userId,
+      tier: input.tier,
+      model: input.model,
+      tokenCount: input.tokenCount,
+      creditCost: Math.round(input.amount * 100), // Store as cents
+      conversationId: input.conversationId ?? null,
+      note: input.note ?? null,
+    });
+  } catch (error) {
+    console.error("[Database] Failed to log usage event:", error);
   }
 
   return { credits: 851 };
@@ -470,121 +505,21 @@ export async function updateAgentStep(id: number, data: Partial<InsertAgentStep>
   await db.update(agentSteps).set(data).where(eq(agentSteps.id, id));
 }
 
-// ─── Memory ──────────────────────────────────────────────────────────
-export async function storeMemory(category: string, key: string, value: string, source: string) {
-  const db = await getDb();
-  if (!db) {
-    const store = await readLocalStore();
-    const existing = store.memories.find((memory) => memory.category === category && memory.key === key);
-    const now = new Date().toISOString();
-    if (existing) {
-      existing.value = value;
-      existing.source = source;
-      existing.updatedAt = now;
-    } else {
-      const id = ++store.counters.memories;
-      store.memories.push({
-        id,
-        category,
-        key,
-        value,
-        source,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-    await writeLocalStore(store);
-    return;
-  }
-  await db.insert(memories).values({ category, key, value, source });
-}
-
-export async function recallMemory(category?: string, search?: string) {
-  const db = await getDb();
-  if (!db) {
-    const store = await readLocalStore();
-    const normalizedSearch = search?.toLowerCase();
-    return store.memories
-      .filter((memory) => !category || memory.category === category)
-      .filter((memory) => {
-        if (!normalizedSearch) return true;
-        return memory.key.toLowerCase().includes(normalizedSearch) || memory.value.toLowerCase().includes(normalizedSearch);
-      })
-      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-      .slice(0, 20);
-  }
-  const conditions = [];
-  if (category) conditions.push(eq(memories.category, category));
-  if (search) conditions.push(sql`(${memories.key} LIKE ${`%${search}%`} OR ${memories.value} LIKE ${`%${search}%`})`);
-  if (conditions.length > 0) {
-    return db.select().from(memories).where(and(...conditions)).orderBy(desc(memories.updatedAt)).limit(20);
-  }
-  return db.select().from(memories).orderBy(desc(memories.updatedAt)).limit(20);
-}
-
-export async function listAllMemories() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(memories).orderBy(desc(memories.updatedAt)).limit(100);
-}
-
-export async function deleteMemory(id: number) {
-  const db = await getDb();
-  if (!db) return;
-  await db.delete(memories).where(eq(memories.id, id));
-}
-
-// ─── Skills ──────────────────────────────────────────────────────────
-export async function listSkills() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(skills).orderBy(skills.name);
-}
-
-export async function createSkill(data: InsertSkill) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  const result = await db.insert(skills).values(data);
-  return { id: result[0].insertId };
-}
-
-export async function updateSkill(id: number, data: Partial<InsertSkill>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(skills).set(data).where(eq(skills.id, id));
-}
-
-export async function deleteSkill(id: number) {
-  const db = await getDb();
-  if (!db) return;
-  await db.delete(skills).where(eq(skills.id, id));
-}
-
-export async function getSkillBySlug(slug: string) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(skills).where(eq(skills.slug, slug)).limit(1);
-  return result[0] || null;
-}
-
 // ─── Connectors ──────────────────────────────────────────────────────
-export async function listConnectors() {
+export async function listConnectors(userId: number) {
   const db = await getDb();
-  if (!db) return [];
-  return db.select().from(connectors).orderBy(connectors.name);
+  if (!db) {
+    const store = await readLocalStore();
+    return (store.connectors || []).filter((c: any) => c.userId === userId);
+  }
+  return db.select().from(connectors).where(eq(connectors.userId, userId)).orderBy(desc(connectors.createdAt));
 }
 
-export async function createConnector(data: InsertConnector) {
+export async function createConnector(userId: number, data: InsertConnector) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(connectors).values(data);
+  const result = await db.insert(connectors).values({ ...data, userId });
   return { id: result[0].insertId };
-}
-
-export async function updateConnector(id: number, data: Partial<InsertConnector>) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(connectors).set(data).where(eq(connectors.id, id));
 }
 
 export async function deleteConnector(id: number) {
@@ -594,16 +529,16 @@ export async function deleteConnector(id: number) {
 }
 
 // ─── Scheduled Tasks ─────────────────────────────────────────────────
-export async function listScheduledTasks() {
+export async function listScheduledTasks(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(scheduledTasks).orderBy(desc(scheduledTasks.createdAt));
+  return db.select().from(scheduledTasks).where(eq(scheduledTasks.userId, userId)).orderBy(desc(scheduledTasks.createdAt));
 }
 
-export async function createScheduledTask(data: InsertScheduledTask) {
+export async function createScheduledTask(userId: number, data: InsertScheduledTask) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(scheduledTasks).values(data);
+  const result = await db.insert(scheduledTasks).values({ ...data, userId });
   return { id: result[0].insertId };
 }
 
@@ -620,10 +555,16 @@ export async function deleteScheduledTask(id: number) {
 }
 
 // ─── Research Sessions ───────────────────────────────────────────────
-export async function createResearchSession(data: InsertResearchSession) {
+export async function listResearchSessions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(researchSessions).where(eq(researchSessions.userId, userId)).orderBy(desc(researchSessions.createdAt));
+}
+
+export async function createResearchSession(userId: number, data: InsertResearchSession) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(researchSessions).values(data);
+  const result = await db.insert(researchSessions).values({ ...data, userId });
   return { id: result[0].insertId };
 }
 
@@ -631,29 +572,4 @@ export async function updateResearchSession(id: number, data: Partial<InsertRese
   const db = await getDb();
   if (!db) return;
   await db.update(researchSessions).set(data).where(eq(researchSessions.id, id));
-}
-
-export async function listResearchSessions(limit = 20) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(researchSessions).orderBy(desc(researchSessions.createdAt)).limit(limit);
-}
-
-// ─── App Settings ────────────────────────────────────────────────────
-export async function getSetting(key: string): Promise<string | null> {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select().from(appSettings).where(eq(appSettings.key, key)).limit(1);
-  return result[0]?.value || null;
-}
-
-export async function setSetting(key: string, value: string) {
-  const db = await getDb();
-  if (!db) return;
-  const existing = await db.select().from(appSettings).where(eq(appSettings.key, key)).limit(1);
-  if (existing.length > 0) {
-    await db.update(appSettings).set({ value }).where(eq(appSettings.key, key));
-  } else {
-    await db.insert(appSettings).values({ key, value });
-  }
 }

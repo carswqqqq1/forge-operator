@@ -15,9 +15,10 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// ─── Conversations ───────────────────────────────────────────────────
+// ─── Conversations ───────────────────────────────────────────────
 export const conversations = mysqlTable("conversations", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   title: varchar("title", { length: 255 }).notNull().default("New Conversation"),
   model: varchar("model", { length: 128 }).notNull().default("llama3"),
   systemPrompt: text("systemPrompt"),
@@ -28,9 +29,10 @@ export const conversations = mysqlTable("conversations", {
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
 
-// ─── Messages ────────────────────────────────────────────────────────
+// ─── Messages ────────────────────────────────────────────────────
 export const messages = mysqlTable("messages", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   conversationId: int("conversationId").notNull(),
   role: mysqlEnum("role", ["system", "user", "assistant", "tool"]).notNull(),
   content: text("content").notNull(),
@@ -46,6 +48,7 @@ export type InsertMessage = typeof messages.$inferInsert;
 // ─── Tool Executions ─────────────────────────────────────────────────
 export const toolExecutions = mysqlTable("tool_executions", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   conversationId: int("conversationId"),
   messageId: int("messageId"),
   toolName: varchar("toolName", { length: 64 }).notNull(),
@@ -61,6 +64,7 @@ export type InsertToolExecution = typeof toolExecutions.$inferInsert;
 // ─── System Prompts (Presets) ────────────────────────────────────────
 export const systemPrompts = mysqlTable("system_prompts", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
   name: varchar("name", { length: 128 }).notNull(),
   description: text("description"),
   content: text("content").notNull(),
@@ -74,6 +78,7 @@ export type InsertSystemPrompt = typeof systemPrompts.$inferInsert;
 // ─── Agent Tasks (Autonomous Planning) ───────────────────────────────
 export const agentTasks = mysqlTable("agent_tasks", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   conversationId: int("conversationId"),
   goal: text("goal").notNull(),
   plan: text("plan"),
@@ -90,6 +95,7 @@ export type InsertAgentTask = typeof agentTasks.$inferInsert;
 // ─── Agent Steps (Sub-tasks within a plan) ───────────────────────────
 export const agentSteps = mysqlTable("agent_steps", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   taskId: int("taskId").notNull(),
   stepIndex: int("stepIndex").notNull(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -107,6 +113,7 @@ export type InsertAgentStep = typeof agentSteps.$inferInsert;
 // ─── Memory (User preferences & context retention) ───────────────────
 export const memories = mysqlTable("memories", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   category: varchar("category", { length: 64 }).notNull(),
   key: varchar("key", { length: 255 }).notNull(),
   value: text("value").notNull(),
@@ -120,6 +127,7 @@ export type InsertMemory = typeof memories.$inferInsert;
 // ─── Skills (Reusable workflows) ─────────────────────────────────────
 export const skills = mysqlTable("skills", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
   name: varchar("name", { length: 128 }).notNull(),
   slug: varchar("slug", { length: 128 }).notNull(),
   description: text("description"),
@@ -136,6 +144,7 @@ export type InsertSkill = typeof skills.$inferInsert;
 // ─── Connectors (External integrations) ──────────────────────────────
 export const connectors = mysqlTable("connectors", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   type: varchar("type", { length: 64 }).notNull(),
   config: text("config"),
@@ -150,6 +159,7 @@ export type InsertConnector = typeof connectors.$inferInsert;
 // ─── Scheduled Tasks ─────────────────────────────────────────────────
 export const scheduledTasks = mysqlTable("scheduled_tasks", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   cronExpression: varchar("cronExpression", { length: 64 }),
@@ -168,6 +178,7 @@ export type InsertScheduledTask = typeof scheduledTasks.$inferInsert;
 // ─── Research Sessions (Wide Research) ───────────────────────────────
 export const researchSessions = mysqlTable("research_sessions", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
   conversationId: int("conversationId"),
   query: text("query").notNull(),
   status: mysqlEnum("status", ["running", "completed", "failed"]).default("running").notNull(),
@@ -182,9 +193,25 @@ export type InsertResearchSession = typeof researchSessions.$inferInsert;
 // ─── App Settings (Key-value config) ─────────────────────────────────
 export const appSettings = mysqlTable("app_settings", {
   id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
   key: varchar("key", { length: 128 }).notNull(),
   value: text("value").notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type AppSetting = typeof appSettings.$inferSelect;
 export type InsertAppSetting = typeof appSettings.$inferInsert;
+
+// ─── Usage Events (Credit tracking) ──────────────────────────────────
+export const usageEvents = mysqlTable("usage_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tier: mysqlEnum("tier", ["lite", "core", "max"]).notNull(),
+  model: varchar("model", { length: 128 }).notNull(),
+  tokenCount: int("tokenCount").notNull(),
+  creditCost: int("creditCost").notNull(),
+  conversationId: int("conversationId"),
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type UsageEvent = typeof usageEvents.$inferSelect;
+export type InsertUsageEvent = typeof usageEvents.$inferInsert;

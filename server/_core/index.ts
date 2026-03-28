@@ -9,6 +9,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { sdk } from "./sdk";
 import * as claude from "../claude";
 import * as ollama from "../ollama";
 import * as nvidia from "../nvidia";
@@ -62,6 +63,20 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+// ─── Auth Middleware ──────────────────────────────────────────────────
+async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const user = await sdk.authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+}
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
@@ -71,14 +86,26 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
-  // ─── Claude SSE Streaming Endpoint ─────────────────────────────
-  app.post("/api/claude/stream", async (req, res) => {
+  // ─── Claude SSE Streaming Endpoint (Protected) ─────────────────────────────
+  app.post("/api/claude/stream", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
+    const user = (req as any).user;
     const { messages, conversationId } = req.body;
+    
+    // Verify conversation ownership
+    if (conversationId) {
+      const conv = await db.getConversation(conversationId);
+      if (!conv || conv.userId !== user.id) {
+        res.write(`data: ${JSON.stringify({ type: "error", content: "Unauthorized access to conversation" })}\n\n`);
+        res.end();
+        return;
+      }
+    }
+
     try {
       let fullContent = "";
       for await (const chunk of claude.sendMessage(messages)) {
@@ -91,6 +118,7 @@ async function startServer() {
       // Save assistant message to DB
       if (conversationId && fullContent) {
         await db.addMessage({
+          userId: user.id,
           conversationId,
           role: "assistant",
           content: fullContent,
@@ -104,14 +132,26 @@ async function startServer() {
     res.end();
   });
 
-  // ─── Ollama SSE Streaming Endpoint ─────────────────────────────
-  app.post("/api/ollama/stream", async (req, res) => {
+  // ─── Ollama SSE Streaming Endpoint (Protected) ─────────────────────────────
+  app.post("/api/ollama/stream", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
+    const user = (req as any).user;
     const { messages, model, conversationId, systemPrompt } = req.body;
+    
+    // Verify conversation ownership
+    if (conversationId) {
+      const conv = await db.getConversation(conversationId);
+      if (!conv || conv.userId !== user.id) {
+        res.write(`data: ${JSON.stringify({ type: "error", content: "Unauthorized access to conversation" })}\n\n`);
+        res.end();
+        return;
+      }
+    }
+
     const ollamaMessages: ollama.OllamaMessage[] = [];
 
     if (systemPrompt) {
@@ -122,7 +162,7 @@ async function startServer() {
     try {
       const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
       if (lastUserMsg) {
-        const memories = await db.recallMemory(undefined, lastUserMsg.content?.slice(0, 100));
+        const memories = await db.recallMemory(user.id, lastUserMsg.content?.slice(0, 100));
         if (memories.length > 0) {
           const memCtx = memories.map((m: any) => `[${m.category}] ${m.key}: ${m.value}`).join("\n");
           ollamaMessages.push({ role: "system", content: `Relevant memories:\n${memCtx}` });
@@ -227,8 +267,8 @@ async function startServer() {
               })}\n\n`);
 
               const result = await executeTool(tc.function.name, tc.function.arguments as Record<string, unknown>, {
-                storeMemory: db.storeMemory,
-                recallMemory: db.recallMemory,
+                storeMemory: (category, key, value, source) => db.storeMemory(user.id, category, key, value, source),
+                recallMemory: (query) => db.recallMemory(user.id, query),
               });
 
               res.write(`data: ${JSON.stringify({
@@ -237,6 +277,7 @@ async function startServer() {
               })}\n\n`);
 
               await db.logToolExecution({
+                userId: user.id,
                 conversationId: conversationId || null,
                 toolName: tc.function.name,
                 toolInput: JSON.stringify(tc.function.arguments),
@@ -270,6 +311,7 @@ async function startServer() {
           ? (process.env.NVIDIA_MODEL_REASONING || process.env.NVIDIA_MODEL_DEFAULT || "meta/llama-3.1-70b-instruct")
           : (model || "llama3");
         await db.addMessage({
+          userId: user.id,
           conversationId,
           role: "assistant",
           content: fullContent,
@@ -280,6 +322,7 @@ async function startServer() {
 
         const tier = getTierForModel(finalModel);
         await db.consumeCredits({
+          userId: user.id,
           amount: calculateCreditCost(evalCount, tier),
           tier,
           model: finalModel,
