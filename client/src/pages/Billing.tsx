@@ -16,6 +16,14 @@ const tierDescriptions = {
   max: "Highest reasoning tier for harder jobs and deeper analysis.",
 } as const;
 
+function getEventCost(event: any) {
+  if (typeof event?.amount === "number") return event.amount;
+  if (typeof event?.creditCost === "number") {
+    return event.creditCost > 20 ? event.creditCost / 100 : event.creditCost;
+  }
+  return 0;
+}
+
 export default function Billing() {
   const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
   const setTier = trpc.usage.setTier.useMutation();
@@ -82,7 +90,7 @@ export default function Billing() {
                         {event.model || "Model"} · {event.tier || "core"} · {event.tokenCount || 0} tokens
                       </div>
                     </div>
-                    <div className="text-sm font-medium text-foreground">-{Number(event.amount).toFixed(1)}</div>
+                    <div className="text-sm font-medium text-foreground">-{getEventCost(event).toFixed(1)}</div>
                   </div>
                 ))
               ) : (
