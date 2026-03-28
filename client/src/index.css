@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -44,47 +45,32 @@
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
 }
 
-/* ─── Manus Design System: Bright Green + Red Accents ─── */
 :root {
   --radius: 0.5rem;
-  /* Clean white background */
   --background: oklch(1 0 0);
-  /* Dark text */
   --foreground: oklch(0.15 0.01 260);
-  /* White cards */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.15 0.01 260);
-  /* White popover */
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.01 260);
-  /* Bright lime green primary */
   --primary: oklch(0.8 0.3 140);
   --primary-foreground: oklch(0.15 0.01 260);
-  /* Light gray secondary */
   --secondary: oklch(0.95 0.01 260);
   --secondary-foreground: oklch(0.3 0.01 260);
-  /* Light gray muted */
   --muted: oklch(0.92 0.01 260);
   --muted-foreground: oklch(0.5 0.01 260);
-  /* Red accent */
   --accent: oklch(0.6 0.25 25);
   --accent-foreground: oklch(1 0 0);
-  /* Red destructive */
   --destructive: oklch(0.6 0.25 25);
   --destructive-foreground: oklch(1 0 0);
-  /* Light gray border */
   --border: oklch(0.92 0.01 260);
-  /* Light gray input */
   --input: oklch(0.95 0.01 260);
-  /* Green ring */
   --ring: oklch(0.8 0.3 140);
-  /* Chart colors */
   --chart-1: oklch(0.8 0.3 140);
   --chart-2: oklch(0.6 0.25 25);
   --chart-3: oklch(0.7 0.2 250);
   --chart-4: oklch(0.75 0.25 180);
   --chart-5: oklch(0.65 0.2 30);
-  /* Sidebar */
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.15 0.01 260);
   --sidebar-primary: oklch(0.8 0.3 140);
@@ -95,7 +81,6 @@
   --sidebar-ring: oklch(0.8 0.3 140);
 }
 
-/* ─── Base Styles ─── */
 * {
   border-color: var(--border);
 }
@@ -110,7 +95,6 @@ body {
   font-family: var(--font-sans);
 }
 
-/* ─── Typography ─── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
   font-weight: 700;
@@ -147,7 +131,6 @@ h6 {
   line-height: 1.5rem;
 }
 
-/* ─── Dashed Border Utility ─── */
 .dashed-border {
   border-width: 2px;
   border-style: dashed;
@@ -160,7 +143,6 @@ h6 {
   border-color: var(--accent);
 }
 
-/* ─── Container ─── */
 .container {
   margin-left: auto;
   margin-right: auto;
@@ -183,7 +165,6 @@ h6 {
   }
 }
 
-/* ─── Links ─── */
 a {
   color: var(--primary);
   transition-property: color;
@@ -195,20 +176,17 @@ a:hover {
   color: var(--accent);
 }
 
-/* ─── Buttons ─── */
 button {
   transition-property: color, background-color, border-color;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
-/* ─── Focus Styles ─── */
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
 }
 
-/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
   width: 0.5rem;
   height: 0.5rem;
