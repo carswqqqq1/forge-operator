@@ -256,7 +256,6 @@ export async function addMessage(data: InsertMessage) {
     return { id };
   }
   const result = await db.insert(messages).values(data);
-  // Update conversation timestamp
   if (data.conversationId) {
     await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, data.conversationId));
   }
@@ -421,14 +420,13 @@ export async function consumeCredits(input: {
     return { credits: nextCredits };
   }
 
-  // Insert into usage_events table
   try {
     await db.insert(usageEvents).values({
       userId: input.userId,
       tier: input.tier,
       model: input.model,
       tokenCount: input.tokenCount,
-      creditCost: Math.round(input.amount * 100), // Store as cents
+      creditCost: Math.round(input.amount * 100),
       conversationId: input.conversationId ?? null,
       note: input.note ?? null,
     });
@@ -566,6 +564,13 @@ export async function createResearchSession(userId: number, data: InsertResearch
   if (!db) throw new Error("DB not available");
   const result = await db.insert(researchSessions).values({ ...data, userId });
   return { id: result[0].insertId };
+}
+
+export async function getResearchSession(sessionId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(researchSessions).where(eq(researchSessions.id, sessionId)).limit(1);
+  return result[0] || null;
 }
 
 export async function updateResearchSession(id: number, data: Partial<InsertResearchSession>) {
