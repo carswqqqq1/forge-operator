@@ -520,6 +520,16 @@ export async function createConnector(userId: number, data: InsertConnector) {
   return { id: result[0].insertId };
 }
 
+export async function getConnector(id: number) {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    return (store.connectors || []).find((c: any) => c.id === id) || null;
+  }
+  const result = await db.select().from(connectors).where(eq(connectors.id, id)).limit(1);
+  return result[0] || null;
+}
+
 export async function deleteConnector(id: number) {
   const db = await getDb();
   if (!db) return;
