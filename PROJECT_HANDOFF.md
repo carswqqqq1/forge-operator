@@ -4,7 +4,7 @@
 
 This repository is currently on `main` and matches remote commit:
 
-- `9e22e92` `Add complete local Manus agent: Ollama + Claude + NVIDIA with full UI, tools, and tests`
+- `bb7a16c` `Polish Forge auth, credits, connectors, and billing`
 
 The project is no longer the earlier `apps/web` Forge monorepo as the primary runtime.
 The authoritative app shape in the repo right now is:
