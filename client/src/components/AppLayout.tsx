@@ -25,7 +25,7 @@ import {
   SlidersHorizontal,
   Plug,
   Menu,
-  WandSparkles,
+  Gem,
 } from "lucide-react";
 import { CSSProperties, useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -45,20 +45,20 @@ const DEFAULT_WIDTH = 240;
 const modelOptions = [
   {
     id: "max",
-    label: "Manus 1.6 Max",
+    label: "Forge 1.6 Max",
     description: "High-performance agent designed for complex tasks.",
   },
   {
     id: "core",
-    label: "Manus 1.6",
+    label: "Forge 1.6",
     description: "Versatile agent capable of most tasks.",
   },
   {
     id: "lite",
-    label: "Manus 1.6 Lite",
+    label: "Forge 1.6 Lite",
     description: "A lightweight agent for everyday tasks.",
   },
-];
+] as const;
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth] = useState(() => {
@@ -67,9 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   });
 
   return (
-    <SidebarProvider
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-    >
+    <SidebarProvider style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <AppLayoutContent>{children}</AppLayoutContent>
     </SidebarProvider>
   );
@@ -93,7 +91,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     return location === path;
   };
 
-  const currentModel = modelOptions.find((option) => option.id === selectedTier)?.label || "Manus 1.6 Lite";
+  const currentModel = modelOptions.find((option) => option.id === selectedTier)?.label || "Forge 1.6 Lite";
+  const credits = Math.max(0, Math.round(usageState?.credits ?? 851));
 
   useEffect(() => {
     if (usageState?.selectedTier) {
@@ -123,7 +122,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             {!isCollapsed && (
               <div className="mr-auto flex items-center gap-2 px-1">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden">
+                <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md">
                   <img src="/logo-light.png" alt="Forge Logo" className="h-full w-full object-contain" />
                 </div>
                 <span className="text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground">forge</span>
@@ -132,7 +131,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {!isCollapsed && (
               <button
                 onClick={toggleSidebar}
-                className="ml-auto h-7 w-7 flex items-center justify-center hover:bg-accent rounded-md transition-colors shrink-0"
+                className="ml-auto h-7 w-7 shrink-0 rounded-md transition-colors hover:bg-accent flex items-center justify-center"
               >
                 <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -140,7 +139,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {isCollapsed && (
               <button
                 onClick={toggleSidebar}
-                className="h-7 w-7 flex items-center justify-center hover:bg-accent rounded-md transition-colors mx-auto"
+                className="mx-auto h-7 w-7 rounded-md transition-colors hover:bg-accent flex items-center justify-center"
               >
                 <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -151,14 +150,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <SidebarContent className="gap-0 px-3">
           <div className="space-y-0.5 pt-3">
             <button
-              onClick={() => {
-                setLocation("/");
-              }}
+              onClick={() => setLocation("/")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors",
-                isActive("/")
-                  ? "bg-accent text-foreground"
-                  : "text-foreground hover:bg-accent"
+                isActive("/") ? "bg-accent text-foreground" : "text-foreground hover:bg-accent"
               )}
             >
               <PenLine className="h-4 w-4 shrink-0" />
@@ -169,9 +164,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation("/skills")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                isActive("/skills")
-                  ? "bg-accent text-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                isActive("/skills") ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
@@ -182,9 +175,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setSearchOpen(true)}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                searchOpen
-                  ? "bg-accent text-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                searchOpen ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
               <Search className="h-4 w-4 shrink-0" />
@@ -195,9 +186,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation("/memory")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                isActive("/memory")
-                  ? "bg-accent text-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                isActive("/memory") ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
               <Library className="h-4 w-4 shrink-0" />
@@ -208,11 +197,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           {!isCollapsed && (
             <>
               <div className="mt-6">
-                <div className="flex items-center justify-between px-2.5 mb-1">
+                <div className="mb-1 flex items-center justify-between px-2.5">
                   <span className="text-xs font-medium text-muted-foreground">Projects</span>
                   <button
                     onClick={() => setLocation("/connectors")}
-                    className="h-5 w-5 flex items-center justify-center hover:bg-accent rounded transition-colors"
+                    className="h-5 w-5 rounded transition-colors hover:bg-accent flex items-center justify-center"
                   >
                     <Plus className="h-3 w-3 text-muted-foreground" />
                   </button>
@@ -229,9 +218,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <SidebarSeparator className="my-3" />
 
               <div>
-                <div className="flex items-center justify-between px-2.5 mb-1">
+                <div className="mb-1 flex items-center justify-between px-2.5">
                   <span className="text-xs font-medium text-muted-foreground">All tasks</span>
-                  <button className="h-5 w-5 flex items-center justify-center hover:bg-accent rounded transition-colors">
+                  <button className="h-5 w-5 rounded transition-colors hover:bg-accent flex items-center justify-center">
                     <Filter className="h-3 w-3 text-muted-foreground" />
                   </button>
                 </div>
@@ -244,9 +233,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                           onClick={() => setLocation(`/chat/${conv.id}`)}
                           className={cn(
                             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors group",
-                            location === `/chat/${conv.id}`
-                              ? "bg-accent text-foreground"
-                              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                            location === `/chat/${conv.id}` ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                           )}
                         >
                           <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -254,9 +241,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                         </button>
                       ))
                     ) : (
-                      <p className="px-2.5 py-3 text-xs text-muted-foreground/60 text-center">
-                        No tasks yet
-                      </p>
+                      <p className="px-2.5 py-3 text-xs text-muted-foreground/60 text-center">No tasks yet</p>
                     )}
                   </div>
                 </ScrollArea>
@@ -280,9 +265,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                         onClick={() => setLocation(item.path)}
                         className={cn(
                           "h-8 flex items-center justify-center rounded-md transition-colors",
-                          isActive(item.path)
-                            ? "bg-accent text-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                          isActive(item.path) ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
                         )}
                       >
                         <item.icon className="h-3.5 w-3.5" />
@@ -353,12 +336,12 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <Bell className="h-5 w-5" />
               <span className="absolute right-[13px] top-[12px] h-2.5 w-2.5 rounded-full bg-[#ff7f96]" />
             </button>
-            <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#ddd8cf] bg-[#f8f7f4] text-[#5f5953] transition-colors hover:bg-[#efede8]">
-              <WandSparkles className="h-5 w-5" />
+            <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#ddd8cf] bg-[#f8f7f4] px-4 text-[#36322d] transition-colors hover:bg-[#efede8]">
+              <Gem className="h-5 w-5 text-[#6d675f]" />
+              <span className="text-[18px] font-medium">{credits}</span>
             </button>
-            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full bg-[#29bfe8] text-[20px] font-medium text-white shadow-none">
+            <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full bg-[#6ad3ef] text-[20px] font-medium text-white shadow-none">
               C
-              <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-black text-[9px] text-white">+</span>
             </button>
           </div>
         </div>
