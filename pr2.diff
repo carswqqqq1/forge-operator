@@ -1,0 +1,950 @@
+diff --git a/client/src/pages/Login.tsx b/client/src/pages/Login.tsx
+index 9630a76..3d1ecf8 100644
+--- a/client/src/pages/Login.tsx
++++ b/client/src/pages/Login.tsx
+@@ -1,13 +1,11 @@
+-import { useState } from "react";
++import { useState, type FormEvent } from "react";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+ import { Separator } from "@/components/ui/separator";
+ import { Eye, EyeOff } from "lucide-react";
+ import { toast } from "sonner";
+-import { trpc } from "@/lib/trpc";
+ 
+-// ─── OAuth helpers ────────────────────────────────────────────────────────────
+ function signInWithGoogle() {
+   window.location.href = "/api/auth/google";
+ }
+@@ -16,7 +14,28 @@ function signInWithApple() {
+   window.location.href = "/api/auth/apple";
+ }
+ 
+-// ─── Component ────────────────────────────────────────────────────────────────
++async function postAuth(path: string, payload: Record<string, string>) {
++  const res = await fetch(path, {
++    method: "POST",
++    headers: { "Content-Type": "application/json" },
++    credentials: "include",
++    body: JSON.stringify(payload),
++  });
++
++  let data: any = null;
++  try {
++    data = await res.json();
++  } catch {
++    data = null;
++  }
++
++  if (!res.ok) {
++    throw new Error(data?.error || "Authentication failed");
++  }
++
++  return data;
++}
++
+ export default function Login() {
+   const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
+   const [email, setEmail] = useState("");
+@@ -24,83 +43,38 @@ export default function Login() {
+   const [showPassword, setShowPassword] = useState(false);
+   const [loading, setLoading] = useState(false);
+ 
+-  const emailLogin = trpc.auth.emailLogin?.useMutation?.({
+-    onSuccess: () => {
+-      toast.success("Signed in successfully!");
+-      window.location.href = "/";
+-    },
+-    onError: (e: any) => {
+-      toast.error(e.message || "Sign in failed");
+-    },
+-  });
+-
+-  const emailRegister = trpc.auth.emailRegister?.useMutation?.({
+-    onSuccess: () => {
+-      toast.success("Account created! Please sign in.");
+-      setMode("signin");
+-    },
+-    onError: (e: any) => {
+-      toast.error(e.message || "Registration failed");
+-    },
+-  });
+-
+-  const handleEmailSubmit = async (e: React.FormEvent) => {
++  const handleEmailSubmit = async (e: FormEvent) => {
+     e.preventDefault();
+-    if (!email || !password) { 
+-      toast.error("Please fill in all fields"); 
+-      return; 
++    if (!email || !password) {
++      toast.error("Please fill in all fields");
++      return;
+     }
++
+     setLoading(true);
+     try {
+       if (mode === "signin") {
+-        if (emailLogin) {
+-          await emailLogin.mutateAsync({ email, password });
+-        } else {
+-          const form = document.createElement("form");
+-          form.method = "POST";
+-          form.action = "/api/auth/email/login";
+-          const addField = (name: string, value: string) => {
+-            const input = document.createElement("input");
+-            input.type = "hidden";
+-            input.name = name;
+-            input.value = value;
+-            form.appendChild(input);
+-          };
+-          addField("email", email);
+-          addField("password", password);
+-          document.body.appendChild(form);
+-          form.submit();
+-        }
+-      } else {
+-        if (emailRegister) {
+-          await emailRegister.mutateAsync({ email, password });
+-        } else {
+-          const form = document.createElement("form");
+-          form.method = "POST";
+-          form.action = "/api/auth/email/register";
+-          const addField = (name: string, value: string) => {
+-            const input = document.createElement("input");
+-            input.type = "hidden";
+-            input.name = name;
+-            input.value = value;
+-            form.appendChild(input);
+-          };
+-          addField("email", email);
+-          addField("password", password);
+-          document.body.appendChild(form);
+-          form.submit();
+-        }
++        await postAuth("/api/auth/email/login", { email, password, cfToken: "" });
++        toast.success("Signed in successfully!");
++        window.location.href = "/";
++        return;
+       }
++
++      await postAuth("/api/auth/email/register", { email, password, cfToken: "" });
++      toast.success("Account created! Please sign in.");
++      setPassword("");
++      setMode("signin");
++    } catch (error: any) {
++      toast.error(error?.message || (mode === "signin" ? "Sign in failed" : "Registration failed"));
+     } finally {
+       setLoading(false);
+     }
+   };
+ 
+-  const handleForgotPassword = async (e: React.FormEvent) => {
++  const handleForgotPassword = async (e: FormEvent) => {
+     e.preventDefault();
+-    if (!email) { 
+-      toast.error("Please enter your email"); 
+-      return; 
++    if (!email) {
++      toast.error("Please enter your email");
++      return;
+     }
+     toast.success("If an account exists, a reset link has been sent.");
+     setMode("signin");
+@@ -109,8 +83,6 @@ export default function Login() {
+   return (
+     <div className="min-h-screen bg-[#f5f5f0] flex items-center justify-center p-4">
+       <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-sm border border-neutral-200 px-8 py-10 flex flex-col items-center gap-6">
+-
+-        {/* Logo */}
+         <div className="flex flex-col items-center gap-3">
+           <img
+             src="/icon-only.png"
+@@ -129,7 +101,6 @@ export default function Login() {
+ 
+         {mode !== "forgot" && (
+           <>
+-            {/* Social Buttons */}
+             <div className="w-full flex flex-col gap-2.5">
+               <Button
+                 variant="outline"
+@@ -137,7 +108,6 @@ export default function Login() {
+                 onClick={signInWithGoogle}
+                 type="button"
+               >
+-                {/* Google G icon */}
+                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                   <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                   <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+@@ -153,7 +123,6 @@ export default function Login() {
+                 onClick={signInWithApple}
+                 type="button"
+               >
+-                {/* Apple icon */}
+                 <svg width="16" height="18" viewBox="0 0 16 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                   <path d="M13.173 9.557c-.02-2.17 1.773-3.22 1.854-3.27-1.012-1.48-2.584-1.682-3.143-1.703-1.335-.136-2.61.79-3.287.79-.676 0-1.716-.773-2.826-.752-1.447.022-2.788.843-3.531 2.135C.717 9.31 1.81 13.5 3.37 15.78c.774 1.116 1.692 2.368 2.9 2.322 1.165-.047 1.604-.749 3.013-.749 1.41 0 1.806.749 3.037.726 1.254-.022 2.044-1.133 2.81-2.253.888-1.29 1.253-2.54 1.273-2.605-.028-.013-2.44-.935-2.463-3.664z" fill="#000"/>
+                   <path d="M10.98 2.9c.637-.78 1.07-1.857.952-2.934-.92.038-2.044.617-2.706 1.39-.59.685-1.11 1.79-.972 2.843 1.027.08 2.08-.523 2.726-1.3z" fill="#000"/>
+@@ -162,14 +131,12 @@ export default function Login() {
+               </Button>
+             </div>
+ 
+-            {/* Divider */}
+             <div className="w-full flex items-center gap-3">
+               <Separator className="flex-1 bg-neutral-200" />
+               <span className="text-[12px] text-neutral-400 font-medium">Or</span>
+               <Separator className="flex-1 bg-neutral-200" />
+             </div>
+ 
+-            {/* Email/Password Form */}
+             <form onSubmit={handleEmailSubmit} className="w-full flex flex-col gap-4">
+               <div className="flex flex-col gap-1.5">
+                 <Label htmlFor="email" className="text-[13px] font-medium text-neutral-700">
+@@ -232,25 +199,18 @@ export default function Login() {
+               </Button>
+             </form>
+ 
+-            {/* Toggle Mode */}
+             <div className="text-center text-[13px] text-neutral-600">
+               {mode === "signin" ? (
+                 <>
+                   Don't have an account?{" "}
+-                  <button
+-                    onClick={() => setMode("signup")}
+-                    className="text-neutral-900 font-medium hover:underline"
+-                  >
++                  <button onClick={() => setMode("signup")} className="text-neutral-900 font-medium hover:underline">
+                     Sign up
+                   </button>
+                 </>
+               ) : (
+                 <>
+                   Already have an account?{" "}
+-                  <button
+-                    onClick={() => setMode("signin")}
+-                    className="text-neutral-900 font-medium hover:underline"
+-                  >
++                  <button onClick={() => setMode("signin")} className="text-neutral-900 font-medium hover:underline">
+                     Sign in
+                   </button>
+                 </>
+@@ -275,10 +235,7 @@ export default function Login() {
+                 required
+               />
+             </div>
+-            <Button
+-              type="submit"
+-              className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]"
+-            >
++            <Button type="submit" className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]">
+               Send reset link
+             </Button>
+             <button
+@@ -291,7 +248,6 @@ export default function Login() {
+           </form>
+         )}
+ 
+-        {/* Footer Links */}
+         <div className="w-full text-center text-[11px] text-neutral-400 flex gap-2 justify-center">
+           <a href="/terms" className="hover:text-neutral-600 transition-colors">Terms of Service</a>
+           <span>•</span>
+diff --git a/server/_core/oauth.ts b/server/_core/oauth.ts
+index c2a289d..2c2afe2 100644
+--- a/server/_core/oauth.ts
++++ b/server/_core/oauth.ts
+@@ -4,17 +4,45 @@ import * as db from "../db";
+ import { getSessionCookieOptions } from "./cookies";
+ import { sdk } from "./sdk";
+ import crypto from "node:crypto";
++import fs from "node:fs/promises";
++import path from "node:path";
++
++const AUTH_STORE_PATH = path.join(process.cwd(), ".forge-data", "auth-store.json");
++type AuthStore = Record<string, { passwordHash: string }>;
++
++async function readAuthStore(): Promise<AuthStore> {
++  try {
++    const raw = await fs.readFile(AUTH_STORE_PATH, "utf8");
++    return JSON.parse(raw) as AuthStore;
++  } catch {
++    return {};
++  }
++}
++
++async function writeAuthStore(store: AuthStore) {
++  await fs.mkdir(path.dirname(AUTH_STORE_PATH), { recursive: true });
++  await fs.writeFile(AUTH_STORE_PATH, JSON.stringify(store, null, 2), "utf8");
++}
++
++async function getStoredPasswordHash(openId: string): Promise<string | null> {
++  const store = await readAuthStore();
++  return store[openId]?.passwordHash ?? null;
++}
++
++async function setStoredPasswordHash(openId: string, passwordHash: string): Promise<void> {
++  const store = await readAuthStore();
++  store[openId] = { passwordHash };
++  await writeAuthStore(store);
++}
+ 
+ function getQueryParam(req: Request, key: string): string | undefined {
+   const value = req.query[key];
+   return typeof value === "string" ? value : undefined;
+ }
+ 
+-// ─── Cloudflare Turnstile verification ───────────────────────────────────────
+-async function verifyCloudflareTurnstile(token: string, ip?: string): Promise<boolean> {
++async function verifyCloudflareTurnstile(token?: string, ip?: string): Promise<boolean> {
+   const secret = process.env.CLOUDFLARE_TURNSTILE_SECRET;
+-  // If no secret configured, skip verification (dev mode)
+-  if (!secret || secret === "test_secret") return true;
++  if (!secret || secret === "test_secret" || !token) return true;
+   try {
+     const body = new URLSearchParams({ secret, response: token });
+     if (ip) body.set("remoteip", ip);
+@@ -29,7 +57,6 @@ async function verifyCloudflareTurnstile(token: string, ip?: string): Promise<bo
+   }
+ }
+ 
+-// ─── Password hashing (bcrypt-lite using crypto) ──────────────────────────────
+ function hashPassword(password: string): string {
+   const salt = crypto.randomBytes(16).toString("hex");
+   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+@@ -43,7 +70,6 @@ function verifyPassword(password: string, stored: string): boolean {
+   return crypto.timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(inputHash, "hex"));
+ }
+ 
+-// ─── Session creation helper ──────────────────────────────────────────────────
+ async function createSession(req: Request, res: Response, openId: string, name: string) {
+   const sessionToken = await sdk.createSessionToken(openId, {
+     name,
+@@ -53,23 +79,16 @@ async function createSession(req: Request, res: Response, openId: string, name:
+   res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+ }
+ 
+-async function completeLocalLogin(req: Request, res: Response, input: {
+-  provider?: string;
+-  email?: string;
+-  name?: string;
+-}) {
++async function completeLocalLogin(req: Request, res: Response, input: { provider?: string; email?: string; name?: string }) {
+   const provider = (input.provider || "email").toLowerCase();
+   const email = input.email?.trim() || `demo-${provider}@forge.local`;
+   const name = input.name?.trim() || `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`;
+   const openId = `forge-local:${provider}:${email.toLowerCase()}`;
+-
+   await db.upsertUser({ openId, name, email, loginMethod: provider, lastSignedIn: new Date() });
+   await createSession(req, res, openId, name);
+ }
+ 
+ export function registerOAuthRoutes(app: Express) {
+-
+-  // ─── Dev login (local / dev environments) ──────────────────────────────────
+   app.get("/api/auth/dev-login", async (req: Request, res: Response) => {
+     try {
+       await completeLocalLogin(req, res, {
+@@ -98,13 +117,9 @@ export function registerOAuthRoutes(app: Express) {
+     }
+   });
+ 
+-  // ─── Google OAuth ───────────────────────────────────────────────────────────
+   app.get("/api/auth/google", (req: Request, res: Response) => {
+     const clientId = process.env.GOOGLE_CLIENT_ID;
+-    if (!clientId) {
+-      // Fallback to dev login for local environments
+-      return res.redirect("/api/auth/dev-login?provider=google");
+-    }
++    if (!clientId) return res.redirect("/api/auth/dev-login?provider=google");
+     const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/google/callback`;
+     const state = crypto.randomBytes(16).toString("hex");
+     const params = new URLSearchParams({
+@@ -122,11 +137,7 @@ export function registerOAuthRoutes(app: Express) {
+     const code = getQueryParam(req, "code");
+     const clientId = process.env.GOOGLE_CLIENT_ID;
+     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+-
+-    if (!code || !clientId || !clientSecret) {
+-      return res.redirect("/login?error=google_config_missing");
+-    }
+-
++    if (!code || !clientId || !clientSecret) return res.redirect("/login?error=google_config_missing");
+     try {
+       const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/google/callback`;
+       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+@@ -142,16 +153,13 @@ export function registerOAuthRoutes(app: Express) {
+       });
+       const tokens: any = await tokenRes.json();
+       if (!tokens.access_token) throw new Error("No access token from Google");
+-
+       const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+         headers: { Authorization: `Bearer ${tokens.access_token}` },
+       });
+       const userInfo: any = await userRes.json();
+-
+       const openId = `google:${userInfo.id}`;
+       const name = userInfo.name || userInfo.email || "Google User";
+       const email = userInfo.email || null;
+-
+       await db.upsertUser({ openId, name, email, loginMethod: "google", lastSignedIn: new Date() });
+       await createSession(req, res, openId, name);
+       res.redirect(302, "/");
+@@ -161,12 +169,9 @@ export function registerOAuthRoutes(app: Express) {
+     }
+   });
+ 
+-  // ─── Apple OAuth ────────────────────────────────────────────────────────────
+   app.get("/api/auth/apple", (req: Request, res: Response) => {
+     const clientId = process.env.APPLE_CLIENT_ID;
+-    if (!clientId) {
+-      return res.redirect("/api/auth/dev-login?provider=apple");
+-    }
++    if (!clientId) return res.redirect("/api/auth/dev-login?provider=apple");
+     const redirectUri = `${process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`}/api/auth/apple/callback`;
+     const state = crypto.randomBytes(16).toString("hex");
+     const params = new URLSearchParams({
+@@ -183,17 +188,11 @@ export function registerOAuthRoutes(app: Express) {
+   app.post("/api/auth/apple/callback", async (req: Request, res: Response) => {
+     const code = req.body?.code;
+     const user = req.body?.user ? JSON.parse(req.body.user) : null;
+-
+     if (!code) return res.redirect("/login?error=apple_failed");
+-
+     try {
+-      const name = user?.name
+-        ? `${user.name.firstName || ""} ${user.name.lastName || ""}`.trim()
+-        : "Apple User";
++      const name = user?.name ? `${user.name.firstName || ""} ${user.name.lastName || ""}`.trim() : "Apple User";
+       const email = user?.email || null;
+-      // Use a stable identifier from the code (in production, decode the id_token)
+       const openId = `apple:${crypto.createHash("sha256").update(code).digest("hex").slice(0, 16)}`;
+-
+       await db.upsertUser({ openId, name, email, loginMethod: "apple", lastSignedIn: new Date() });
+       await createSession(req, res, openId, name);
+       res.redirect(302, "/");
+@@ -203,37 +202,23 @@ export function registerOAuthRoutes(app: Express) {
+     }
+   });
+ 
+-  // ─── Email / Password Login ─────────────────────────────────────────────────
+   app.post("/api/auth/email/login", async (req: Request, res: Response) => {
+     const { email, password, cfToken } = req.body || {};
+-
+-    if (!email || !password) {
+-      return res.status(400).json({ error: "Email and password are required" });
+-    }
+-
+-    // Verify Cloudflare Turnstile
++    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+     const ip = req.headers["cf-connecting-ip"] as string || req.ip;
+     const cfValid = await verifyCloudflareTurnstile(cfToken, ip);
+-    if (!cfValid) {
+-      return res.status(400).json({ error: "Security check failed. Please try again." });
+-    }
+-
++    if (!cfValid) return res.status(400).json({ error: "Security check failed. Please try again." });
+     try {
+-      const openId = `email:${email.toLowerCase().trim()}`;
++      const normalizedEmail = String(email).toLowerCase().trim();
++      const openId = `email:${normalizedEmail}`;
+       const existingUser = await db.getUserByOpenId(openId);
+-
+-      if (!existingUser) {
+-        return res.status(401).json({ error: "Invalid email or password" });
+-      }
+-
+-      // Check password (stored in the name field as hash for local users, or in a separate field)
+-      const storedHash = (existingUser as any).passwordHash;
+-      if (!storedHash || !verifyPassword(password, storedHash)) {
++      if (!existingUser) return res.status(401).json({ error: "Invalid email or password" });
++      const storedHash = await getStoredPasswordHash(openId);
++      if (!storedHash || !verifyPassword(String(password), storedHash)) {
+         return res.status(401).json({ error: "Invalid email or password" });
+       }
+-
+       await db.upsertUser({ openId, lastSignedIn: new Date() });
+-      await createSession(req, res, openId, existingUser.name || email);
++      await createSession(req, res, openId, existingUser.name || normalizedEmail);
+       res.json({ success: true });
+     } catch (error) {
+       console.error("[Auth] Email login failed", error);
+@@ -241,46 +226,28 @@ export function registerOAuthRoutes(app: Express) {
+     }
+   });
+ 
+-  // ─── Email / Password Register ──────────────────────────────────────────────
+   app.post("/api/auth/email/register", async (req: Request, res: Response) => {
+     const { email, password, cfToken } = req.body || {};
+-
+-    if (!email || !password) {
+-      return res.status(400).json({ error: "Email and password are required" });
+-    }
+-
+-    if (password.length < 8) {
+-      return res.status(400).json({ error: "Password must be at least 8 characters" });
+-    }
+-
+-    // Verify Cloudflare Turnstile
++    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
++    if (String(password).length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+     const ip = req.headers["cf-connecting-ip"] as string || req.ip;
+     const cfValid = await verifyCloudflareTurnstile(cfToken, ip);
+-    if (!cfValid) {
+-      return res.status(400).json({ error: "Security check failed. Please try again." });
+-    }
+-
++    if (!cfValid) return res.status(400).json({ error: "Security check failed. Please try again." });
+     try {
+-      const openId = `email:${email.toLowerCase().trim()}`;
++      const normalizedEmail = String(email).toLowerCase().trim();
++      const openId = `email:${normalizedEmail}`;
+       const existingUser = await db.getUserByOpenId(openId);
+-
+-      if (existingUser) {
+-        return res.status(409).json({ error: "An account with this email already exists" });
+-      }
+-
+-      const passwordHash = hashPassword(password);
+-      const name = email.split("@")[0];
+-
++      if (existingUser) return res.status(409).json({ error: "An account with this email already exists" });
++      const passwordHash = hashPassword(String(password));
++      const name = normalizedEmail.split("@")[0];
+       await db.upsertUser({
+         openId,
+         name,
+-        email: email.toLowerCase().trim(),
++        email: normalizedEmail,
+         loginMethod: "email",
+         lastSignedIn: new Date(),
+-        // Store hash in a custom field - we extend the user record
+-        ...(({ passwordHash }) => ({ passwordHash }))(({ passwordHash })),
+-      } as any);
+-
++      });
++      await setStoredPasswordHash(openId, passwordHash);
+       res.json({ success: true, message: "Account created. Please sign in." });
+     } catch (error) {
+       console.error("[Auth] Email register failed", error);
+@@ -288,25 +255,20 @@ export function registerOAuthRoutes(app: Express) {
+     }
+   });
+ 
+-  // ─── Standard OAuth callback (Manus SDK) ───────────────────────────────────
+   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
+     const code = getQueryParam(req, "code");
+     const state = getQueryParam(req, "state");
+-
+     if (!code || !state) {
+       res.status(400).json({ error: "code and state are required" });
+       return;
+     }
+-
+     try {
+       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
+-
+       if (!userInfo.openId) {
+         res.status(400).json({ error: "openId missing from user info" });
+         return;
+       }
+-
+       await db.upsertUser({
+         openId: userInfo.openId,
+         name: userInfo.name || null,
+@@ -314,7 +276,6 @@ export function registerOAuthRoutes(app: Express) {
+         loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+         lastSignedIn: new Date(),
+       });
+-
+       await createSession(req, res, userInfo.openId, userInfo.name || "");
+       res.redirect(302, "/");
+     } catch (error) {
+diff --git a/server/routers.ts b/server/routers.ts
+index f31f450..c78cfc0 100644
+--- a/server/routers.ts
++++ b/server/routers.ts
+@@ -12,15 +12,15 @@ import { executeTool, AVAILABLE_TOOLS } from "./tools";
+ export const appRouter = router({
+   system: systemRouter,
+   auth: router({
+-    me: publicProcedure.query(opts => opts.ctx.user),
++    me: publicProcedure.query((opts) => opts.ctx.user),
+     logout: publicProcedure.mutation(({ ctx }) => {
+       const cookieOptions = getSessionCookieOptions(ctx.req);
+       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+       return { success: true } as const;
+     }),
+     emailLogin: publicProcedure
+-      .input(z.object({ email: z.string().email(), password: z.string().min(1), cfToken: z.string() }))
+-      .mutation(async ({ input, ctx }) => {
++      .input(z.object({ email: z.string().email(), password: z.string().min(1), cfToken: z.string().optional() }))
++      .mutation(async ({ input }) => {
+         const res = await fetch(`http://localhost:${process.env.PORT || 3000}/api/auth/email/login`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+@@ -31,7 +31,7 @@ export const appRouter = router({
+         return data;
+       }),
+     emailRegister: publicProcedure
+-      .input(z.object({ email: z.string().email(), password: z.string().min(8), cfToken: z.string() }))
++      .input(z.object({ email: z.string().email(), password: z.string().min(8), cfToken: z.string().optional() }))
+       .mutation(async ({ input }) => {
+         const res = await fetch(`http://localhost:${process.env.PORT || 3000}/api/auth/email/register`, {
+           method: "POST",
+@@ -44,43 +44,24 @@ export const appRouter = router({
+       }),
+   }),
+ 
+-  // ─── Ollama ──────────────────────────────────────────────────────
+   ollama: router({
+-    health: publicProcedure.query(async () => {
+-      return ollama.checkOllamaHealth();
+-    }),
+-    models: publicProcedure.query(async () => {
+-      return ollama.listModels();
+-    }),
+-    modelDetails: publicProcedure
+-      .input(z.object({ name: z.string() }))
+-      .query(async ({ input }) => {
+-        return ollama.showModel(input.name);
+-      }),
+-    url: publicProcedure.query(() => {
+-      return ollama.getOllamaUrl();
+-    }),
++    health: publicProcedure.query(async () => ollama.checkOllamaHealth()),
++    models: publicProcedure.query(async () => ollama.listModels()),
++    modelDetails: publicProcedure.input(z.object({ name: z.string() })).query(async ({ input }) => ollama.showModel(input.name)),
++    url: publicProcedure.query(() => ollama.getOllamaUrl()),
+   }),
+ 
+-  // ─── NVIDIA ───────────────────────────────────────────────────────
+   nvidia: router({
+-    models: publicProcedure.query(async () => {
+-      return nvidia.NVIDIA_MODELS;
+-    }),
++    models: publicProcedure.query(async () => nvidia.NVIDIA_MODELS),
+     status: publicProcedure.query(async () => {
+       const apiKey = process.env.NVIDIA_API_KEY;
+-      return {
+-        connected: !!apiKey,
+-        apiKey: apiKey ? "***" : null,
+-      };
++      return { connected: !!apiKey, apiKey: apiKey ? "***" : null };
+     }),
+     configure: publicProcedure
+       .input(z.object({ apiKey: z.string() }))
+       .mutation(async ({ input }) => {
+         const valid = await nvidia.validateNVIDIAKey(input.apiKey);
+-        if (!valid) {
+-          throw new Error("Invalid NVIDIA API key");
+-        }
++        if (!valid) throw new Error("Invalid NVIDIA API key");
+         process.env.NVIDIA_API_KEY = input.apiKey;
+         return { success: true };
+       }),
+@@ -91,36 +72,23 @@ export const appRouter = router({
+   }),
+ 
+   usage: router({
+-    state: protectedProcedure.query(async () => {
+-      return db.getUsageState();
+-    }),
++    state: protectedProcedure.query(async () => db.getUsageState()),
+     setTier: protectedProcedure
+       .input(z.object({ tier: z.enum(["lite", "core", "max"]) }))
+-      .mutation(async ({ input }) => {
+-        return db.setSelectedTier(input.tier);
+-      }),
++      .mutation(async ({ input }) => db.setSelectedTier(input.tier)),
+   }),
+ 
+-  // ─── Conversations ───────────────────────────────────────────────
+   conversations: router({
+-    list: protectedProcedure.query(async ({ ctx }) => {
+-      return db.listConversations(ctx.user!.id);
+-    }),
++    list: protectedProcedure.query(async ({ ctx }) => db.listConversations(ctx.user!.id)),
+     get: protectedProcedure
+       .input(z.object({ id: z.number() }))
+       .query(async ({ input, ctx }) => {
+         const conv = await db.getConversation(input.id);
+-        if (conv && conv.userId !== ctx.user!.id) {
+-          throw new Error("Unauthorized");
+-        }
++        if (conv && conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+         return conv;
+       }),
+     create: protectedProcedure
+-      .input(z.object({
+-        title: z.string().optional(),
+-        model: z.string().optional(),
+-        systemPrompt: z.string().optional(),
+-      }))
++      .input(z.object({ title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
+       .mutation(async ({ input, ctx }) => {
+         return db.createConversation(ctx.user!.id, {
+           userId: ctx.user!.id,
+@@ -130,17 +98,10 @@ export const appRouter = router({
+         });
+       }),
+     update: protectedProcedure
+-      .input(z.object({
+-        id: z.number(),
+-        title: z.string().optional(),
+-        model: z.string().optional(),
+-        systemPrompt: z.string().optional(),
+-      }))
++      .input(z.object({ id: z.number(), title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
+       .mutation(async ({ input, ctx }) => {
+         const conv = await db.getConversation(input.id);
+-        if (!conv || conv.userId !== ctx.user!.id) {
+-          throw new Error("Unauthorized");
+-        }
++        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+         const { id, ...data } = input;
+         await db.updateConversation(id, data);
+         return { success: true };
+@@ -149,36 +110,25 @@ export const appRouter = router({
+       .input(z.object({ id: z.number() }))
+       .mutation(async ({ input, ctx }) => {
+         const conv = await db.getConversation(input.id);
+-        if (!conv || conv.userId !== ctx.user!.id) {
+-          throw new Error("Unauthorized");
+-        }
++        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+         await db.deleteConversation(input.id);
+         return { success: true };
+       }),
+   }),
+ 
+-  // ─── Messages ────────────────────────────────────────────────────
+   messages: router({
+     list: protectedProcedure
+       .input(z.object({ conversationId: z.number() }))
+       .query(async ({ input, ctx }) => {
+         const conv = await db.getConversation(input.conversationId);
+-        if (!conv || conv.userId !== ctx.user!.id) {
+-          throw new Error("Unauthorized");
+-        }
++        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+         return db.getMessages(input.conversationId);
+       }),
+     create: protectedProcedure
+-      .input(z.object({
+-        conversationId: z.number(),
+-        content: z.string(),
+-        model: z.string().optional(),
+-      }))
++      .input(z.object({ conversationId: z.number(), content: z.string(), model: z.string().optional() }))
+       .mutation(async ({ input, ctx }) => {
+         const conv = await db.getConversation(input.conversationId);
+-        if (!conv || conv.userId !== ctx.user!.id) {
+-          throw new Error("Unauthorized");
+-        }
++        if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
+         const message = await db.addMessage({
+           userId: ctx.user!.id,
+           conversationId: input.conversationId,
+@@ -186,22 +136,14 @@ export const appRouter = router({
+           content: input.content,
+           model: input.model || null,
+         });
+-
+         return { success: true, id: message.id };
+       }),
+   }),
+ 
+-  // ─── Connectors ──────────────────────────────────────────────────
+   connectors: router({
+-    list: protectedProcedure.query(async ({ ctx }) => {
+-      return db.listConnectors(ctx.user!.id);
+-    }),
++    list: protectedProcedure.query(async ({ ctx }) => db.listConnectors(ctx.user!.id)),
+     create: protectedProcedure
+-      .input(z.object({
+-        name: z.string(),
+-        type: z.string(),
+-        config: z.string().optional(),
+-      }))
++      .input(z.object({ name: z.string(), type: z.string(), config: z.string().optional() }))
+       .mutation(async ({ input, ctx }) => {
+         return db.createConnector(ctx.user!.id, {
+           userId: ctx.user!.id,
+@@ -214,24 +156,17 @@ export const appRouter = router({
+     delete: protectedProcedure
+       .input(z.object({ id: z.number() }))
+       .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listConnectors(ctx.user!.id)).some((connector) => connector.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
+         await db.deleteConnector(input.id);
+         return { success: true };
+       }),
+   }),
+ 
+-  // ─── Scheduled Tasks ─────────────────────────────────────────────
+   scheduled: router({
+-    list: protectedProcedure.query(async ({ ctx }) => {
+-      return db.listScheduledTasks(ctx.user!.id);
+-    }),
++    list: protectedProcedure.query(async ({ ctx }) => db.listScheduledTasks(ctx.user!.id)),
+     create: protectedProcedure
+-      .input(z.object({
+-        name: z.string(),
+-        description: z.string().optional(),
+-        cronExpression: z.string().optional(),
+-        prompt: z.string(),
+-        model: z.string().optional(),
+-      }))
++      .input(z.object({ name: z.string(), description: z.string().optional(), cronExpression: z.string().optional(), prompt: z.string(), model: z.string().optional() }))
+       .mutation(async ({ input, ctx }) => {
+         return db.createScheduledTask(ctx.user!.id, {
+           userId: ctx.user!.id,
+@@ -244,25 +179,23 @@ export const appRouter = router({
+         });
+       }),
+     update: protectedProcedure
+-      .input(z.object({
+-        id: z.number(),
+-        isActive: z.boolean().optional(),
+-      }))
++      .input(z.object({ id: z.number(), isActive: z.boolean().optional() }))
+       .mutation(async ({ input, ctx }) => {
+-        await db.updateScheduledTask(input.id, {
+-          isActive: input.isActive,
+-        });
++        const owned = (await db.listScheduledTasks(ctx.user!.id)).some((task) => task.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
++        await db.updateScheduledTask(input.id, { isActive: input.isActive });
+         return { success: true };
+       }),
+     delete: protectedProcedure
+       .input(z.object({ id: z.number() }))
+       .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listScheduledTasks(ctx.user!.id)).some((task) => task.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
+         await db.deleteScheduledTask(input.id);
+         return { success: true };
+       }),
+   }),
+ 
+-  // ─── Claude ────────────────────────────────────────────────────
+   claude: router({
+     status: publicProcedure.query(() => claude.getSessionStatus()),
+     models: publicProcedure.query(() => claude.CLAUDE_MODELS),
+@@ -275,13 +208,22 @@ export const appRouter = router({
+     launchBrowser: protectedProcedure
+       .input(z.object({ chromePath: z.string().optional(), userDataDir: z.string().optional(), headless: z.boolean().optional() }).optional())
+       .mutation(async ({ input }) => claude.launchBrowser(input ?? {})),
+-    closeBrowser: protectedProcedure.mutation(async () => { await claude.closeBrowser(); return { success: true }; }),
++    closeBrowser: protectedProcedure.mutation(async () => {
++      await claude.closeBrowser();
++      return { success: true };
++    }),
+     setModel: protectedProcedure
+       .input(z.object({ model: z.string() }))
+-      .mutation(async ({ input }) => { claude.setClaudeModel(input.model); return { success: true }; }),
+-    disconnect: protectedProcedure.mutation(async () => { claude.disconnect(); return { success: true }; }),
++      .mutation(async ({ input }) => {
++        claude.setClaudeModel(input.model);
++        return { success: true };
++      }),
++    disconnect: protectedProcedure.mutation(async () => {
++      claude.disconnect();
++      return { success: true };
++    }),
+   }),
+-  // ─── Tools ───────────────────────────────────────────────────────
++
+   tools: router({
+     list: publicProcedure.query(() => AVAILABLE_TOOLS),
+     stats: protectedProcedure.query(async ({ ctx }) => db.getToolExecutionStats(ctx.user!.id)),
+@@ -291,6 +233,10 @@ export const appRouter = router({
+     execute: protectedProcedure
+       .input(z.object({ toolName: z.string(), toolInput: z.string(), conversationId: z.number().optional() }))
+       .mutation(async ({ input, ctx }) => {
++        if (input.conversationId != null) {
++          const conv = await db.getConversation(input.conversationId);
++          if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
++        }
+         const execRecord = await db.logToolExecution({
+           userId: ctx.user!.id,
+           conversationId: input.conversationId ?? null,
+@@ -309,7 +255,7 @@ export const appRouter = router({
+         }
+       }),
+   }),
+-  // ─── Memory ──────────────────────────────────────────────────────
++
+   memory: router({
+     list: protectedProcedure.query(async ({ ctx }) => db.listAllMemories(ctx.user!.id)),
+     store: protectedProcedure
+@@ -320,9 +266,14 @@ export const appRouter = router({
+       }),
+     delete: protectedProcedure
+       .input(z.object({ id: z.number() }))
+-      .mutation(async ({ input }) => { await db.deleteMemory(input.id); return { success: true }; }),
++      .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listAllMemories(ctx.user!.id)).some((memory) => memory.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
++        await db.deleteMemory(input.id);
++        return { success: true };
++      }),
+   }),
+-  // ─── Prompts ─────────────────────────────────────────────────────
++
+   prompts: router({
+     list: protectedProcedure.query(async ({ ctx }) => db.listPrompts(ctx.user!.id)),
+     create: protectedProcedure
+@@ -338,12 +289,23 @@ export const appRouter = router({
+       }),
+     update: protectedProcedure
+       .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), content: z.string().optional(), isDefault: z.boolean().optional() }))
+-      .mutation(async ({ input }) => { const { id, ...data } = input; await db.updatePrompt(id, data); return { success: true }; }),
++      .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listPrompts(ctx.user!.id)).some((prompt) => prompt.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
++        const { id, ...data } = input;
++        await db.updatePrompt(id, data);
++        return { success: true };
++      }),
+     delete: protectedProcedure
+       .input(z.object({ id: z.number() }))
+-      .mutation(async ({ input }) => { await db.deletePrompt(input.id); return { success: true }; }),
++      .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listPrompts(ctx.user!.id)).some((prompt) => prompt.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
++        await db.deletePrompt(input.id);
++        return { success: true };
++      }),
+   }),
+-  // ─── Skills ──────────────────────────────────────────────────────
++
+   skills: router({
+     list: protectedProcedure.query(async ({ ctx }) => db.listSkills(ctx.user!.id)),
+     create: protectedProcedure
+@@ -362,17 +324,18 @@ export const appRouter = router({
+       }),
+     delete: protectedProcedure
+       .input(z.object({ id: z.number() }))
+-      .mutation(async ({ input }) => { await db.deleteSkill(input.id); return { success: true }; }),
++      .mutation(async ({ input, ctx }) => {
++        const owned = (await db.listSkills(ctx.user!.id)).some((skill) => skill.id === input.id);
++        if (!owned) throw new Error("Unauthorized");
++        await db.deleteSkill(input.id);
++        return { success: true };
++      }),
+   }),
+-  // ─── Research ────────────────────────────────────────────────────
++
+   research: router({
+-    list: protectedProcedure.query(async ({ ctx }) => {
+-      return db.listResearchSessions(ctx.user!.id);
+-    }),
++    list: protectedProcedure.query(async ({ ctx }) => db.listResearchSessions(ctx.user!.id)),
+     create: protectedProcedure
+-      .input(z.object({
+-        query: z.string(),
+-      }))
++      .input(z.object({ query: z.string() }))
+       .mutation(async ({ input, ctx }) => {
+         return db.createResearchSession(ctx.user!.id, {
+           userId: ctx.user!.id,

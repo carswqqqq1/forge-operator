@@ -18,9 +18,7 @@ const tierDescriptions = {
 
 function getEventCost(event: any) {
   if (typeof event?.amount === "number") return event.amount;
-  if (typeof event?.creditCost === "number") {
-    return event.creditCost > 20 ? event.creditCost / 100 : event.creditCost;
-  }
+  if (typeof event?.creditCost === "number") return event.creditCost;
   return 0;
 }
 
