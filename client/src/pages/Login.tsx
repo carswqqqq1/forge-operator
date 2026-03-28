@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,65 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-
-// ─── Cloudflare Turnstile ─────────────────────────────────────────────────────
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"; // test key
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (container: string | HTMLElement, options: object) => string;
-      reset: (widgetId: string) => void;
-      remove: (widgetId: string) => void;
-      getResponse: (widgetId: string) => string | undefined;
-    };
-  }
-}
-
-function useTurnstile(onSuccess: (token: string) => void) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    const tryRender = () => {
-      if (window.turnstile && containerRef.current && !widgetIdRef.current) {
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          callback: onSuccess,
-          theme: "light",
-          size: "normal",
-        });
-      }
-    };
-
-    script.onload = tryRender;
-    const timer = setInterval(() => {
-      if (window.turnstile) { tryRender(); clearInterval(timer); }
-    }, 200);
-
-    return () => {
-      clearInterval(timer);
-      if (widgetIdRef.current && window.turnstile) {
-        window.turnstile.remove(widgetIdRef.current);
-        widgetIdRef.current = null;
-      }
-    };
-  }, []);
-
-  const reset = () => {
-    if (widgetIdRef.current && window.turnstile) {
-      window.turnstile.reset(widgetIdRef.current);
-    }
-  };
-
-  return { containerRef, reset };
-}
 
 // ─── OAuth helpers ────────────────────────────────────────────────────────────
 function signInWithGoogle() {
@@ -81,14 +22,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [cfToken, setCfToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [cfVerified, setCfVerified] = useState(false);
-
-  const { containerRef: turnstileRef, reset: resetTurnstile } = useTurnstile((token) => {
-    setCfToken(token);
-    setCfVerified(true);
-  });
 
   const emailLogin = trpc.auth.emailLogin?.useMutation?.({
     onSuccess: () => {
@@ -97,9 +31,6 @@ export default function Login() {
     },
     onError: (e: any) => {
       toast.error(e.message || "Sign in failed");
-      resetTurnstile();
-      setCfToken(null);
-      setCfVerified(false);
     },
   });
 
@@ -110,23 +41,21 @@ export default function Login() {
     },
     onError: (e: any) => {
       toast.error(e.message || "Registration failed");
-      resetTurnstile();
-      setCfToken(null);
-      setCfVerified(false);
     },
   });
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { toast.error("Please fill in all fields"); return; }
-    if (!cfToken) { toast.error("Please complete the security check"); return; }
+    if (!email || !password) { 
+      toast.error("Please fill in all fields"); 
+      return; 
+    }
     setLoading(true);
     try {
       if (mode === "signin") {
         if (emailLogin) {
-          await emailLogin.mutateAsync({ email, password, cfToken });
+          await emailLogin.mutateAsync({ email, password });
         } else {
-          // Fallback: direct form post
           const form = document.createElement("form");
           form.method = "POST";
           form.action = "/api/auth/email/login";
@@ -139,13 +68,12 @@ export default function Login() {
           };
           addField("email", email);
           addField("password", password);
-          addField("cfToken", cfToken);
           document.body.appendChild(form);
           form.submit();
         }
       } else {
         if (emailRegister) {
-          await emailRegister.mutateAsync({ email, password, cfToken });
+          await emailRegister.mutateAsync({ email, password });
         } else {
           const form = document.createElement("form");
           form.method = "POST";
@@ -159,7 +87,6 @@ export default function Login() {
           };
           addField("email", email);
           addField("password", password);
-          addField("cfToken", cfToken);
           document.body.appendChild(form);
           form.submit();
         }
@@ -171,7 +98,10 @@ export default function Login() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) { toast.error("Please enter your email"); return; }
+    if (!email) { 
+      toast.error("Please enter your email"); 
+      return; 
+    }
     toast.success("If an account exists, a reset link has been sent.");
     setMode("signin");
   };
@@ -187,7 +117,6 @@ export default function Login() {
             alt="Forge"
             className="w-14 h-14 object-contain"
             onError={(e) => {
-              // Fallback to SVG hammer icon if image fails
               (e.target as HTMLImageElement).style.display = "none";
             }}
           />
@@ -280,7 +209,7 @@ export default function Login() {
                     placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-10 text-[14px] border-neutral-300 rounded-lg pr-10 placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
+                    className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400 pr-10"
                     required
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   />
@@ -288,122 +217,86 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
-                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
-              {/* Cloudflare Turnstile */}
-              <div className="w-full flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  {cfVerified && (
-                    <div className="flex items-center gap-1.5 text-[12px] text-green-600 font-medium">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <circle cx="7" cy="7" r="7" fill="#22c55e"/>
-                        <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Verified
-                    </div>
-                  )}
-                  <div className="ml-auto flex items-center gap-1 text-[11px] text-neutral-400">
-                    <svg width="16" height="10" viewBox="0 0 80 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M40 0C17.9 0 0 5.8 0 13s17.9 13 40 13 40-5.8 40-13S62.1 0 40 0z" fill="#F38020"/>
-                    </svg>
-                    <span>Cloudflare</span>
-                  </div>
-                </div>
-                <div ref={turnstileRef} className="w-full" />
-              </div>
-
               <Button
                 type="submit"
-                disabled={loading || !cfToken}
-                className="w-full h-11 bg-neutral-700 hover:bg-neutral-800 text-white text-[14px] font-medium rounded-lg transition-colors disabled:opacity-50"
+                disabled={loading}
+                className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]"
               >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                    </svg>
-                    {mode === "signin" ? "Signing in..." : "Creating account..."}
-                  </span>
-                ) : (
-                  mode === "signin" ? "Sign in" : "Create account"
-                )}
+                {loading ? "Loading..." : mode === "signin" ? "Sign in" : "Create account"}
               </Button>
             </form>
 
-            {/* Toggle mode */}
-            <p className="text-[13px] text-neutral-500">
+            {/* Toggle Mode */}
+            <div className="text-center text-[13px] text-neutral-600">
               {mode === "signin" ? (
-                <>Don't have an account?{" "}
+                <>
+                  Don't have an account?{" "}
                   <button
-                    type="button"
                     onClick={() => setMode("signup")}
-                    className="text-neutral-800 font-medium hover:underline"
+                    className="text-neutral-900 font-medium hover:underline"
                   >
                     Sign up
                   </button>
                 </>
               ) : (
-                <>Already have an account?{" "}
+                <>
+                  Already have an account?{" "}
                   <button
-                    type="button"
                     onClick={() => setMode("signin")}
-                    className="text-neutral-800 font-medium hover:underline"
+                    className="text-neutral-900 font-medium hover:underline"
                   >
                     Sign in
                   </button>
                 </>
               )}
-            </p>
+            </div>
           </>
         )}
 
-        {/* Forgot Password */}
         {mode === "forgot" && (
           <form onSubmit={handleForgotPassword} className="w-full flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="reset-email" className="text-[13px] font-medium text-neutral-700">
+              <Label htmlFor="forgot-email" className="text-[13px] font-medium text-neutral-700">
                 Email <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="reset-email"
+                id="forgot-email"
                 type="email"
                 placeholder="mail@domain.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
                 required
-                autoComplete="email"
               />
             </div>
             <Button
               type="submit"
-              className="w-full h-11 bg-neutral-700 hover:bg-neutral-800 text-white text-[14px] font-medium rounded-lg transition-colors"
+              className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]"
             >
               Send reset link
             </Button>
             <button
               type="button"
               onClick={() => setMode("signin")}
-              className="text-[13px] text-neutral-500 hover:text-neutral-700 transition-colors"
+              className="text-center text-[13px] text-neutral-600 hover:text-neutral-900 transition-colors"
             >
-              ← Back to sign in
+              Back to sign in
             </button>
           </form>
         )}
 
-        {/* Footer */}
-        <p className="text-[11px] text-neutral-400 text-center leading-relaxed">
-          By continuing, you agree to Forge's{" "}
-          <a href="/privacy" className="underline hover:text-neutral-600">Privacy Policy</a>
-          {" & "}
-          <a href="/terms" className="underline hover:text-neutral-600">Terms</a>
-        </p>
+        {/* Footer Links */}
+        <div className="w-full text-center text-[11px] text-neutral-400 flex gap-2 justify-center">
+          <a href="/terms" className="hover:text-neutral-600 transition-colors">Terms of Service</a>
+          <span>•</span>
+          <a href="/privacy" className="hover:text-neutral-600 transition-colors">Privacy Policy</a>
+        </div>
       </div>
     </div>
   );
