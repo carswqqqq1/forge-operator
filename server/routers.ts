@@ -345,6 +345,38 @@ export const appRouter = router({
         });
       }),
   }),
+  teams: router({
+    list: protectedProcedure.query(async ({ ctx }) => db.listTeams(ctx.user!.id)),
+    create: protectedProcedure
+      .input(z.object({ name: z.string() }))
+      .mutation(async ({ input, ctx }) => db.createTeam(ctx.user!.id, input.name)),
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const team = await db.getTeam(input.id);
+        if (!team) throw new Error("Team not found");
+        const members = await db.getTeamMembers(input.id);
+        const isMember = members.some((m) => m.id === ctx.user!.id);
+        if (!isMember) throw new Error("Unauthorized");
+        return { ...team, members };
+      }),
+    addMember: protectedProcedure
+      .input(z.object({ teamId: z.number(), userId: z.number(), role: z.enum(["admin", "member", "viewer"]).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const team = await db.getTeam(input.teamId);
+        if (!team || team.ownerId !== ctx.user!.id) throw new Error("Unauthorized");
+        await db.addTeamMember(input.teamId, input.userId, input.role);
+        return { success: true };
+      }),
+    removeMember: protectedProcedure
+      .input(z.object({ teamId: z.number(), userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const team = await db.getTeam(input.teamId);
+        if (!team || team.ownerId !== ctx.user!.id) throw new Error("Unauthorized");
+        await db.removeTeamMember(input.teamId, input.userId);
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

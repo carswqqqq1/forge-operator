@@ -17,6 +17,8 @@ import {
   researchSessions, InsertResearchSession,
   appSettings,
   usageEvents, InsertUsageEvent,
+  teams, InsertTeam,
+  teamMembers, InsertTeamMember,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -675,4 +677,63 @@ export async function deleteMemory(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(memories).where(eq(memories.id, id));
+}
+
+// ─── Teams ───────────────────────────────────────────────────────────
+export async function listTeams(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: teams.id,
+    name: teams.name,
+    ownerId: teams.ownerId,
+    role: teamMembers.role,
+    joinedAt: teamMembers.joinedAt,
+  })
+  .from(teams)
+  .innerJoin(teamMembers, eq(teams.id, teamMembers.teamId))
+  .where(eq(teamMembers.userId, userId));
+}
+
+export async function createTeam(userId: number, name: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(teams).values({ name, ownerId: userId });
+  const teamId = result[0].insertId;
+  await db.insert(teamMembers).values({ teamId, userId, role: "owner" });
+  return { id: teamId };
+}
+
+export async function getTeam(teamId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1);
+  return result[0] || null;
+}
+
+export async function addTeamMember(teamId: number, userId: number, role: "admin" | "member" | "viewer" = "member") {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(teamMembers).values({ teamId, userId, role });
+}
+
+export async function removeTeamMember(teamId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+}
+
+export async function getTeamMembers(teamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    role: teamMembers.role,
+    joinedAt: teamMembers.joinedAt,
+  })
+  .from(teamMembers)
+  .innerJoin(users, eq(teamMembers.userId, users.id))
+  .where(eq(teamMembers.teamId, teamId));
 }
