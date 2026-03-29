@@ -96,17 +96,17 @@ Use that folder as the primary UI reference when tightening the app toward Manus
 
 ### Connectors
 
-- The connectors screen is no longer just a generic JSON form.
-- Quick-connect cards were added for:
+- The connectors surface is now focused on the three real v1 integrations:
   - GitHub
-  - Slack
+  - Gmail
   - Google Drive
-  - Google Calendar
-  - Stripe
-  - Notion
-- Clicking `Connect` now creates a starter connector record for that platform.
-- Main file:
+- GitHub can be connected either by:
+  - the in-app OAuth popup/approve flow
+  - pasting a personal access token on the connectors page
+- Gmail and Google Drive use the Google OAuth popup flow.
+- Main files:
   - [client/src/pages/Connectors.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/Connectors.tsx)
+  - [client/src/pages/ConnectorsSettings.tsx](/Users/carsonweso/Documents/Forge/client/src/pages/ConnectorsSettings.tsx)
 
 ### Home / Shell Polish
 

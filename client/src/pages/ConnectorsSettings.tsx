@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { startConnectorAuth } from "@/lib/connector-auth";
 import { appDefinitions, type AppDefinition } from "@/components/connectors-data";
 import { Check, ChevronRight, Github, Plug, RefreshCw, ShieldCheck } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const connectorCopy: Record<string, { title: string; subtitle: string; bullets: string[] }> = {
@@ -72,7 +72,7 @@ function ConnectorCard({
           }`}
         >
           {connected ? <RefreshCw className="h-4 w-4" /> : null}
-          {connected ? "Refresh access" : `Authorize ${copy.title}`}
+          {connected ? "Disconnect" : `Authorize ${copy.title}`}
         </button>
       </div>
 
@@ -95,6 +95,8 @@ function ConnectorCard({
 
 export default function ConnectorsSettings() {
   const { data: connectors, refetch } = trpc.connectors.list.useQuery();
+  const [githubToken, setGithubToken] = useState("");
+  const [githubTokenLoading, setGithubTokenLoading] = useState(false);
 
   const connectorsByType = useMemo(() => {
     const map = new Map<string, any>();
@@ -103,6 +105,37 @@ export default function ConnectorsSettings() {
     });
     return map;
   }, [connectors]);
+
+  const connectGithubToken = async () => {
+    const token = githubToken.trim();
+    if (!token) {
+      toast.error("Paste a GitHub token first");
+      return;
+    }
+
+    try {
+      setGithubTokenLoading(true);
+      const response = await fetch("/api/connectors/github/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to save GitHub token");
+      }
+
+      await refetch();
+      setGithubToken("");
+      toast.success("GitHub token connected");
+    } catch (error) {
+      console.error("[ConnectorsSettings] GitHub token failed:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to connect GitHub token");
+    } finally {
+      setGithubTokenLoading(false);
+    }
+  };
 
   const handleToggle = async (app: AppDefinition) => {
     const connected = connectorsByType.has(app.type);
@@ -157,15 +190,59 @@ export default function ConnectorsSettings() {
             <div className="space-y-2">
               <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#2f2b27]">Connect your accounts</h2>
               <p className="max-w-2xl text-[14px] leading-6 text-[#756f67]">
-                Sign in once, approve access, and Forge can read your GitHub repos, Gmail threads, and Drive files inside tasks.
+                Sign in once, approve access, or paste a token, and Forge can read your GitHub repos, Gmail threads, and Drive files inside tasks.
               </p>
             </div>
           </div>
           <div className="grid gap-2 text-[12px] text-[#6f685f] md:max-w-[290px]">
             <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">1. Open GitHub connector</div>
-            <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">2. Sign in and approve repo access</div>
+            <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">2. Sign in and approve repo access, or paste a token</div>
             <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">3. Start asking Forge about your code</div>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-[28px] border border-[#e7e1d7] bg-white p-6 shadow-[0_12px_35px_rgba(15,23,42,0.03)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <div className="text-[12px] font-medium uppercase tracking-[0.18em] text-[#8a837a]">GitHub token</div>
+            <div className="space-y-1">
+              <h3 className="text-[18px] font-semibold tracking-[-0.02em] text-[#2f2b27]">Add your own GitHub access</h3>
+              <p className="max-w-2xl text-[13px] leading-6 text-[#756f67]">
+                Paste a GitHub personal access token if you want Forge to access your repos immediately without the OAuth popup.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleToggle(appDefinitions[0])}
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#111111] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f1f]"
+          >
+            <Github className="h-4 w-4" />
+            {connectorsByType.has("github") ? "Disconnect GitHub" : "Authorize GitHub"}
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 md:flex-row">
+          <input
+            type="password"
+            value={githubToken}
+            onChange={(event) => setGithubToken(event.target.value)}
+            placeholder="ghp_..."
+            className="h-11 flex-1 rounded-full border border-[#e4dfd6] bg-[#fbfaf8] px-4 text-[14px] text-[#2f2b27] outline-none transition-colors placeholder:text-[#a09a91] focus:border-[#c9c2b8]"
+          />
+          <button
+            type="button"
+            onClick={() => void connectGithubToken()}
+            disabled={githubTokenLoading}
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[#f3f0ea] px-5 text-[13px] font-medium text-[#3b3632] transition-colors hover:bg-[#ebe7df] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {githubTokenLoading ? "Saving..." : "Connect token"}
+          </button>
+        </div>
+
+        <div className="mt-3 text-[12px] leading-6 text-[#7a746c]">
+          Recommended scopes: <span className="font-medium text-[#4a443e]">repo, read:user, read:org</span>
         </div>
       </div>
 

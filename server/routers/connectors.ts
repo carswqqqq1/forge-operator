@@ -292,6 +292,54 @@ export function registerConnectorRoutes(app: Express) {
   });
 
   /**
+   * Save a personal access token for GitHub
+   * POST /api/connectors/github/token
+   * Body: { token: string }
+   */
+  app.post("/api/connectors/github/token", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateRequest(req);
+      const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+
+      if (!token) {
+        return res.status(400).json({ error: "GitHub token is required" });
+      }
+
+      const validationResponse = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "Forge",
+        },
+      });
+
+      if (!validationResponse.ok) {
+        const payload = await validationResponse.json().catch(() => null);
+        const message = payload?.message || "Invalid GitHub token";
+        return res.status(400).json({ error: message });
+      }
+
+      const manager = getConnectorManager();
+      await manager.saveConnectorState(user.id, "github", {
+        accessToken: token,
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+        userId: String(user.id),
+      });
+
+      const userInfo = await validationResponse.json().catch(() => null);
+      res.json({
+        success: true,
+        login: userInfo?.login || null,
+        name: userInfo?.name || null,
+      });
+    } catch (error) {
+      console.error("[Connectors] GitHub token save failed:", error);
+      res.status(500).json({ error: "Failed to save GitHub token" });
+    }
+  });
+
+  /**
    * List connected services for current user
    * GET /api/connectors/list
    */

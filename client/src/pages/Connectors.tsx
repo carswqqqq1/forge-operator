@@ -277,6 +277,8 @@ function Row({
 export default function Connectors() {
   const [, setLocation] = useLocation()
   const { data: connectors, refetch } = trpc.connectors.list.useQuery()
+  const [githubToken, setGithubToken] = useState("")
+  const [githubTokenLoading, setGithubTokenLoading] = useState(false)
 
   const [screen, setScreen] = useState<Screen>("main")
   const [tab, setTab] = useState<Tab>("apps")
@@ -290,6 +292,36 @@ export default function Connectors() {
   }, [connectors])
 
   const isConnected = (type: string) => connectorsByType.has(type)
+
+  const connectGithubToken = async () => {
+    const token = githubToken.trim()
+    if (!token) {
+      toast.error("Paste a GitHub token first")
+      return
+    }
+
+    try {
+      setGithubTokenLoading(true)
+      const response = await fetch("/api/connectors/github/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ token }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error || "Failed to save GitHub token")
+      }
+      await refetch()
+      setGithubToken("")
+      toast.success("GitHub token connected")
+    } catch (error) {
+      console.error("[Connectors] GitHub token connection failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to connect GitHub token")
+    } finally {
+      setGithubTokenLoading(false)
+    }
+  }
 
   const handleAuth = async (app: AppDefinition) => {
     const alreadyConnected = isConnected(app.type)
@@ -349,6 +381,47 @@ export default function Connectors() {
       <div className="px-6 pb-4 text-[28px] font-semibold tracking-[-0.03em] text-[#3b3632]">Connectors</div>
 
       <div className="mx-4 overflow-hidden rounded-[28px] border border-[#ece8e1] bg-[#f7f6f3]">
+        <div className="border-b border-[#e8e4dc] px-5 py-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <div className="text-[12px] font-medium uppercase tracking-[0.18em] text-[#8a847c]">GitHub access</div>
+              <div className="space-y-1">
+                <div className="text-[18px] font-semibold tracking-[-0.02em] text-[#2f2b27]">Add your own GitHub token</div>
+                <p className="max-w-2xl text-[13px] leading-6 text-[#746e66]">
+                  Paste a personal access token if you want Forge to read repositories immediately, or use the authorize button below.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleAuth(appDefinitions[0])}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#111111] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f1f]"
+            >
+              <GithubBrandIcon className="h-4 w-4" />
+              {isConnected("github") ? "Disconnect GitHub" : "Authorize GitHub"}
+            </button>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+            <input
+              type="password"
+              value={githubToken}
+              onChange={(event) => setGithubToken(event.target.value)}
+              placeholder="ghp_..."
+              className="h-11 flex-1 rounded-full border border-[#ddd8cf] bg-white px-4 text-[14px] text-[#2f2b27] outline-none transition-colors placeholder:text-[#a09a91] focus:border-[#c9c2b8]"
+            />
+            <button
+              type="button"
+              onClick={() => void connectGithubToken()}
+              disabled={githubTokenLoading}
+              className="inline-flex h-11 items-center justify-center rounded-full bg-[#f3f0ea] px-5 text-[13px] font-medium text-[#3b3632] transition-colors hover:bg-[#ebe7df] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {githubTokenLoading ? "Saving..." : "Connect token"}
+            </button>
+          </div>
+          <div className="mt-3 text-[12px] leading-6 text-[#7a746c]">
+            Forge validates the token first, then saves it for repo access inside tasks.
+          </div>
+        </div>
         <div className="max-h-[460px] overflow-y-auto">
           {mainToggleApps.map((app, index) => (
             <div key={app.key} className={index === mainToggleApps.length - 1 && mainConnectApps.length === 0 ? "" : "border-b border-[#e8e4dc]"}>
