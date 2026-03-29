@@ -276,7 +276,7 @@ function Row({
 }
 
 export default function Connectors() {
-  const [, setLocation] = useLocation()
+  const [location, setLocation] = useLocation()
   const { data: connectors, refetch } = trpc.connectors.list.useQuery()
   const [githubToken, setGithubToken] = useState("")
   const [githubTokenLoading, setGithubTokenLoading] = useState(false)
