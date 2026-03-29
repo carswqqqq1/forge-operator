@@ -50,6 +50,48 @@ type LocalStore = {
   };
 };
 
+function normalizeEnabledConnectors(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((entry) => String(entry)).filter(Boolean);
+      }
+    } catch {}
+  }
+
+  return [];
+}
+
+function normalizeConversationRecord<T extends Record<string, any>>(conversation: T | null | undefined): T | null {
+  if (!conversation) return null;
+  return {
+    ...conversation,
+    enabledConnectors: normalizeEnabledConnectors(conversation.enabledConnectors),
+  };
+}
+
+function serializeEnabledConnectors(value?: string[] | string | null) {
+  if (Array.isArray(value)) return JSON.stringify(value.map((entry) => String(entry)).filter(Boolean));
+  if (typeof value === "string") return value;
+  return "[]";
+}
+
+function connectorTypeToName(type: string) {
+  if (type === "google_drive") return "Google Drive";
+  if (type === "github") return "GitHub";
+  if (type === "gmail") return "Gmail";
+  if (type === "slack") return "Slack";
+  return type
+    .split(/[_-]/g)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 const defaultStore = (): LocalStore => ({
   users: [],
   conversations: [],
@@ -172,6 +214,7 @@ export async function createConversation(userId: number, data: InsertConversatio
       title: data.title ?? "New Conversation",
       model: data.model ?? "llama3",
       systemPrompt: data.systemPrompt ?? null,
+      enabledConnectors: normalizeEnabledConnectors((data as any).enabledConnectors),
       isArchived: data.isArchived ?? false,
       createdAt: now,
       updatedAt: now,
@@ -179,7 +222,11 @@ export async function createConversation(userId: number, data: InsertConversatio
     await writeLocalStore(store);
     return { id };
   }
-  const result = await db.insert(conversations).values({ ...data, userId });
+  const result = await db.insert(conversations).values({
+    ...data,
+    userId,
+    enabledConnectors: serializeEnabledConnectors((data as any).enabledConnectors),
+  } as any);
   return { id: result[0].insertId };
 }
 
@@ -189,20 +236,22 @@ export async function listConversations(userId: number, limit = 50) {
     const store = await readLocalStore();
     return [...store.conversations]
       .filter((conversation) => conversation.userId === userId && !conversation.isArchived)
+      .map((conversation) => normalizeConversationRecord(conversation)!)
       .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
       .slice(0, limit);
   }
-  return db.select().from(conversations).where(and(eq(conversations.userId, userId), eq(conversations.isArchived, false))).orderBy(desc(conversations.updatedAt)).limit(limit);
+  const rows = await db.select().from(conversations).where(and(eq(conversations.userId, userId), eq(conversations.isArchived, false))).orderBy(desc(conversations.updatedAt)).limit(limit);
+  return rows.map((conversation) => normalizeConversationRecord(conversation)!);
 }
 
 export async function getConversation(id: number) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
-    return store.conversations.find((conversation) => conversation.id === id) || null;
+    return normalizeConversationRecord(store.conversations.find((conversation) => conversation.id === id)) || null;
   }
   const result = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-  return result[0] || null;
+  return normalizeConversationRecord(result[0]) || null;
 }
 
 export async function updateConversation(id: number, data: Partial<InsertConversation>) {
@@ -211,11 +260,22 @@ export async function updateConversation(id: number, data: Partial<InsertConvers
     const store = await readLocalStore();
     const conversation = store.conversations.find((entry) => entry.id === id);
     if (!conversation) return;
-    Object.assign(conversation, data, { updatedAt: new Date().toISOString() });
+    const nextEnabledConnectors = (data as any).enabledConnectors !== undefined
+      ? normalizeEnabledConnectors((data as any).enabledConnectors)
+      : conversation.enabledConnectors;
+    Object.assign(conversation, {
+      ...data,
+      enabledConnectors: nextEnabledConnectors,
+      updatedAt: new Date().toISOString(),
+    });
     await writeLocalStore(store);
     return;
   }
-  await db.update(conversations).set(data).where(eq(conversations.id, id));
+  const payload: Record<string, unknown> = { ...data };
+  if ((data as any).enabledConnectors !== undefined) {
+    payload.enabledConnectors = serializeEnabledConnectors((data as any).enabledConnectors);
+  }
+  await db.update(conversations).set(payload as any).where(eq(conversations.id, id));
 }
 
 export async function deleteConversation(id: number) {
@@ -515,9 +575,71 @@ export async function listConnectors(userId: number) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
-    return (store.connectors || []).filter((c: any) => c.userId === userId);
+    const connectorRows = (store.connectors || []).filter((c: any) => c.userId === userId);
+    const stateRows = (store.connectorStates || []).filter((c: any) => c.userId === userId);
+    const envGithub = process.env.GITHUB_PERSONAL_ACCESS_TOKEN
+      ? [{
+          id: -1000,
+          userId,
+          name: "GitHub",
+          type: "github",
+          config: JSON.stringify({ source: "env" }),
+          status: "active",
+          lastSyncAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }]
+      : [];
+    const synthetic = stateRows.map((state: any, index: number) => ({
+      id: -(index + 1),
+      userId,
+      name: connectorTypeToName(state.connectorType),
+      type: state.connectorType,
+      config: state.state || null,
+      status: "active",
+      lastSyncAt: state.updatedAt || state.createdAt || new Date().toISOString(),
+      createdAt: state.createdAt || new Date().toISOString(),
+      updatedAt: state.updatedAt || new Date().toISOString(),
+    }));
+    const byType = new Map<string, any>();
+    [...connectorRows, ...synthetic, ...envGithub].forEach((connector) => {
+      if (!byType.has(connector.type)) byType.set(connector.type, connector);
+    });
+    return Array.from(byType.values());
   }
-  return db.select().from(connectors).where(eq(connectors.userId, userId)).orderBy(desc(connectors.createdAt));
+  const [connectorRows, stateRows] = await Promise.all([
+    db.select().from(connectors).where(eq(connectors.userId, userId)).orderBy(desc(connectors.createdAt)),
+    db.select().from(connectorStates).where(eq(connectorStates.userId, userId)).orderBy(desc(connectorStates.createdAt)),
+  ]);
+  const envGithub = process.env.GITHUB_PERSONAL_ACCESS_TOKEN
+    ? [{
+        id: -1000,
+        userId,
+        name: "GitHub",
+        type: "github",
+        config: JSON.stringify({ source: "env" }),
+        status: "active",
+        lastSyncAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }]
+    : [];
+  const synthetic = stateRows.map((state: any, index: number) => ({
+    id: -(index + 1),
+    userId,
+    name: connectorTypeToName(state.connectorType),
+    type: state.connectorType,
+    config: state.state || null,
+    status: "active",
+    lastSyncAt: state.updatedAt || state.createdAt || new Date().toISOString(),
+    createdAt: state.createdAt || new Date().toISOString(),
+    updatedAt: state.updatedAt || new Date().toISOString(),
+  }));
+  const byType = new Map<string, any>();
+  [...connectorRows, ...synthetic, ...envGithub].forEach((connector) => {
+    if (!byType.has(connector.type)) byType.set(connector.type, connector);
+  });
+  return Array.from(byType.values());
 }
 
 export async function createConnector(userId: number, data: InsertConnector) {
@@ -814,11 +936,23 @@ export async function getConnectorState(
     // Fallback to local store
     const store = await readLocalStore();
     if (!store.connectors) return null;
-    return (
-      store.connectors.find(
-        (c) => c.userId === userId && c.connectorType === connectorType
-      ) || null
-    );
+    const stored = store.connectors.find(
+      (c) => c.userId === userId && c.connectorType === connectorType
+    ) || null;
+    if (stored) return stored;
+    if (connectorType === "github" && process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+      return {
+        userId,
+        connectorType,
+        accessToken: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+        refreshToken: null,
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+        state: JSON.stringify({ source: "env" }),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return null;
   }
 
   const { connectorStates } = await import("../drizzle/schema");
@@ -835,7 +969,20 @@ export async function getConnectorState(
     )
     .limit(1);
 
-  return result[0] || null;
+  if (result[0]) return result[0];
+  if (connectorType === "github" && process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+    return {
+      userId,
+      connectorType,
+      accessToken: process.env.GITHUB_PERSONAL_ACCESS_TOKEN,
+      refreshToken: null,
+      expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+      state: JSON.stringify({ source: "env" }),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  return null;
 }
 
 export async function deleteConnectorState(
@@ -872,10 +1019,21 @@ export async function listConnectorStates(userId: number): Promise<string[]> {
   if (!db) {
     // Fallback to local store
     const store = await readLocalStore();
-    if (!store.connectors) return [];
-    return store.connectors
-      .filter((c) => c.userId === userId)
-      .map((c) => c.connectorType);
+    const types = new Set<string>();
+    if (store.connectors) {
+      store.connectors
+        .filter((c) => c.userId === userId)
+        .forEach((c) => types.add(c.connectorType));
+    }
+    if (store.connectorStates) {
+      store.connectorStates
+        .filter((c) => c.userId === userId)
+        .forEach((c) => types.add(c.connectorType));
+    }
+    if (process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+      types.add("github");
+    }
+    return Array.from(types);
   }
 
   const { connectorStates } = await import("../drizzle/schema");
@@ -886,5 +1044,9 @@ export async function listConnectorStates(userId: number): Promise<string[]> {
     .from(connectorStates)
     .where(eq(connectorStates.userId, userId));
 
-  return result.map((r) => r.connectorType);
+  const types = new Set(result.map((r) => r.connectorType));
+  if (process.env.GITHUB_PERSONAL_ACCESS_TOKEN) {
+    types.add("github");
+  }
+  return Array.from(types);
 }

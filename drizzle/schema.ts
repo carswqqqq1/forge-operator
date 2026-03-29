@@ -22,6 +22,7 @@ export const conversations = mysqlTable("conversations", {
   title: varchar("title", { length: 255 }).notNull().default("New Conversation"),
   model: varchar("model", { length: 128 }).notNull().default("llama3"),
   systemPrompt: text("systemPrompt"),
+  enabledConnectors: text("enabledConnectors").default("[]").notNull(),
   isArchived: boolean("isArchived").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

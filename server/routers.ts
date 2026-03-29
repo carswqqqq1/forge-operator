@@ -83,17 +83,18 @@ export const appRouter = router({
         return conv;
       }),
     create: protectedProcedure
-      .input(z.object({ title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
+      .input(z.object({ title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional(), enabledConnectors: z.array(z.string()).optional() }))
       .mutation(async ({ input, ctx }) => {
         return db.createConversation(ctx.user!.id, {
           userId: ctx.user!.id,
           title: input.title || "New Conversation",
           model: input.model || "meta/llama-3.1-8b-instruct",
           systemPrompt: input.systemPrompt || null,
+          enabledConnectors: input.enabledConnectors || [],
         });
       }),
     update: protectedProcedure
-      .input(z.object({ id: z.number(), title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional() }))
+      .input(z.object({ id: z.number(), title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional(), enabledConnectors: z.array(z.string()).optional() }))
       .mutation(async ({ input, ctx }) => {
         const conv = await db.getConversation(input.id);
         if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");

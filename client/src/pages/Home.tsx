@@ -137,6 +137,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const [, setLocation] = useLocation();
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>("meta/llama-3.1-70b-instruct");
+  const [draftEnabledConnectors, setDraftEnabledConnectors] = useState<string[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const [promoVisible, setPromoVisible] = useState(true);
@@ -147,12 +148,17 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const pendingPromptHandledRef = useRef<number | null>(null);
 
   const convId = conversationId ? parseInt(conversationId) : null;
-  const { data: conversation } = trpc.conversations.get.useQuery({ id: convId! }, { enabled: !!convId });
+  const { data: conversation, refetch: refetchConversation } = trpc.conversations.get.useQuery({ id: convId! }, { enabled: !!convId });
   const { data: messageList, refetch: refetchMessages } = trpc.messages.list.useQuery({ conversationId: convId! }, { enabled: !!convId, refetchInterval: false });
   const { data: nvidiaStatus } = trpc.nvidia.status.useQuery();
   const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
   const { data: connectors, refetch: refetchConnectors } = trpc.connectors.list.useQuery(undefined, { refetchInterval: 5000 });
   const createConversation = trpc.conversations.create.useMutation();
+  const updateConversation = trpc.conversations.update.useMutation({
+    onSuccess: () => {
+      void refetchConversation();
+    },
+  });
   const addMessage = trpc.messages.create.useMutation({ onSuccess: () => refetchMessages() });
 
   const isNvidiaReady = !!nvidiaStatus?.connected;
@@ -164,6 +170,11 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     });
     return map;
   }, [connectors]);
+
+  const activeConnectorTypes = useMemo(() => {
+    if (convId) return conversation?.enabledConnectors || draftEnabledConnectors;
+    return draftEnabledConnectors;
+  }, [convId, conversation?.enabledConnectors, draftEnabledConnectors]);
 
   const connectorRows = [
     {
@@ -192,36 +203,43 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     },
   ] as const;
 
-  const handleConnectorToggle = useCallback(async (row: (typeof connectorRows)[number]) => {
-    const connected = connectorsByType.has(row.type);
+  const handleChatConnectorToggle = useCallback(async (row: (typeof connectorRows)[number]) => {
+    const enabledInChat = activeConnectorTypes.includes(row.type);
     try {
-      if (connected) {
-        const response = await fetch("/api/connectors/disconnect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ service: row.type }),
-        });
-        if (!response.ok) throw new Error("Failed to disconnect connector");
-        await refetchConnectors();
+      if (enabledInChat) {
+        const next = activeConnectorTypes.filter((type) => type !== row.type);
+        if (convId) {
+          await updateConversation.mutateAsync({ id: convId, enabledConnectors: next });
+        } else {
+          setDraftEnabledConnectors(next);
+        }
         return;
       }
 
-      const response = await fetch(row.authUrl, { credentials: "include" });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || "Failed to begin connector auth");
+      if (!connectorsByType.has(row.type)) {
+        const response = await fetch(row.authUrl, { credentials: "include" });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.error || "Failed to begin connector auth");
+        }
+        const { authUrl } = await response.json();
+        await startConnectorAuth(authUrl, row.key);
+        await refetchConnectors();
       }
-      const { authUrl } = await response.json();
-      await startConnectorAuth(authUrl, row.key);
-      await refetchConnectors();
+
+      const next = Array.from(new Set([...activeConnectorTypes, row.type]));
+      if (convId) {
+        await updateConversation.mutateAsync({ id: convId, enabledConnectors: next });
+      } else {
+        setDraftEnabledConnectors(next);
+      }
     } catch (error) {
       console.error("[Forge] Connector auth error", error);
       if (row.type === "github") {
         setLocation("/connectors?connector=github");
       }
     }
-  }, [connectorsByType, refetchConnectors]);
+  }, [activeConnectorTypes, connectorsByType, convId, refetchConnectors, setLocation, updateConversation]);
 
   useEffect(() => {
     if (conversation?.model) return void setSelectedModel(conversation.model);
@@ -281,7 +299,13 @@ export default function Home({ conversationId }: { conversationId?: string }) {
       const response = await fetch("/api/nvidia/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, conversationId: targetConvId, model: selectedModel, systemPrompt: conversation?.systemPrompt || undefined }),
+        body: JSON.stringify({
+          messages: history,
+          conversationId: targetConvId,
+          model: selectedModel,
+          systemPrompt: conversation?.systemPrompt || undefined,
+          enabledConnectors: activeConnectorTypes,
+        }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText || "Failed to connect to streaming endpoint"}`);
@@ -334,7 +358,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
       abortRef.current = null;
       refetchMessages();
     }
-  }, [selectedModel, conversation, addMessage, refetchMessages, ensureLocalSession]);
+  }, [selectedModel, conversation, addMessage, refetchMessages, ensureLocalSession, activeConnectorTypes]);
 
   useEffect(() => {
     if (!convId || streaming.active || pendingPromptHandledRef.current === convId) return;
@@ -352,7 +376,10 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     let targetConvId = convId;
     if (!targetConvId) {
       try {
-        const newConv = await createConversation.mutateAsync({ model: selectedModel || undefined });
+        const newConv = await createConversation.mutateAsync({
+          model: selectedModel || undefined,
+          enabledConnectors: activeConnectorTypes,
+        });
         targetConvId = newConv.id;
         window.sessionStorage.setItem(pendingPromptKey(newConv.id), content);
         setLocation(`/chat/${newConv.id}`);
@@ -362,7 +389,10 @@ export default function Home({ conversationId }: { conversationId?: string }) {
         if (message.includes("Please login") || message.includes("UNAUTHORIZED")) {
           try {
             await ensureLocalSession();
-            const newConv = await createConversation.mutateAsync({ model: selectedModel || undefined });
+            const newConv = await createConversation.mutateAsync({
+              model: selectedModel || undefined,
+              enabledConnectors: activeConnectorTypes,
+            });
             targetConvId = newConv.id;
             window.sessionStorage.setItem(pendingPromptKey(newConv.id), content);
             setLocation(`/chat/${newConv.id}`);
@@ -429,18 +459,18 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                         <PopoverTrigger asChild>
                           <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-4.5 text-[15px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f4f1eb]">
                             <Link2 className="h-4.5 w-4.5" />
-                            <span>{connectorsByType.size ? `+${connectorsByType.size}` : "+0"}</span>
+                            <span>{activeConnectorTypes.length ? `+${activeConnectorTypes.length}` : "+0"}</span>
                           </button>
                         </PopoverTrigger>
                         <PopoverContent align="start" side="top" sideOffset={12} className="w-[320px] rounded-[22px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
                           <div className="space-y-1">
                             {connectorRows.map((row) => {
-                              const connected = connectorsByType.has(row.type);
+                              const enabledInChat = activeConnectorTypes.includes(row.type);
                               return (
                                 <button
                                   key={row.key}
                                   type="button"
-                                  onClick={() => handleConnectorToggle(row)}
+                                  onClick={() => void handleChatConnectorToggle(row)}
                                   className="flex w-full items-center justify-between rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-[#f4f1eb]"
                                 >
                                   <div className="flex min-w-0 items-center gap-2.5">
@@ -452,7 +482,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                                       <div className="truncate text-[11px] leading-4 text-[#8a847c]">{row.description}</div>
                                     </div>
                                   </div>
-                                  <Switch checked={connected} className="pointer-events-none" />
+                                  <Switch checked={enabledInChat} className="pointer-events-none" />
                                 </button>
                               );
                             })}
@@ -537,7 +567,109 @@ export default function Home({ conversationId }: { conversationId?: string }) {
           </div>
         </ScrollArea>
       </div>
-      <div className="shrink-0 border-t border-[#ddd8cf] bg-[#f6f5f2]/95 p-4 backdrop-blur-sm"><div className="mx-auto max-w-3xl"><form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex items-end gap-2"><Textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask anything..." className="min-h-[44px] max-h-32 flex-1 resize-none rounded-[18px] border border-[#ded9d1] bg-white px-4 py-3 text-[14px] text-[#2f2b27] shadow-none outline-none placeholder:text-[#8b857c] focus-visible:border-[#ded9d1] focus-visible:ring-0 focus-visible:shadow-none" rows={1} disabled={streaming.active} />{streaming.active ? <Button type="button" size="icon" variant="destructive" className="h-[44px] w-[44px] shrink-0" onClick={handleStop}><StopCircle className="h-4 w-4" /></Button> : <Button type="submit" size="icon" disabled={!input.trim() || !canSend} className="h-[44px] w-[44px] shrink-0"><Send className="h-4 w-4" /></Button>}</form>{!canSend && !streaming.active && <p className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-500">Add a valid NVIDIA API key to start chatting.</p>}</div></div>
+      <div className="shrink-0 border-t border-[#ddd8cf] bg-[#f6f5f2]/95 p-4 backdrop-blur-sm">
+        <div className="mx-auto max-w-3xl">
+          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="overflow-hidden rounded-[30px] border border-[#ded9d1] bg-white shadow-[0_8px_30px_rgba(42,37,30,0.05)]">
+            <div className="px-5 pt-5">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything..."
+                className="min-h-[110px] max-h-32 w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-8 text-[#2f2b27] shadow-none outline-none placeholder:text-[#6e6963] focus-visible:border-0 focus-visible:ring-0 focus-visible:shadow-none"
+                rows={3}
+                disabled={streaming.active}
+              />
+
+              <div className="mt-4 flex items-center justify-between pb-4">
+                <div className="flex items-center gap-2.5">
+                  <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
+                    <Plus className="h-5 w-5" />
+                  </button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-4.5 text-[15px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f4f1eb]">
+                        <Link2 className="h-4.5 w-4.5" />
+                        <span>{activeConnectorTypes.length ? `+${activeConnectorTypes.length}` : "+0"}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" side="top" sideOffset={12} className="w-[320px] rounded-[22px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
+                      <div className="space-y-1">
+                        {connectorRows.map((row) => {
+                          const enabledInChat = activeConnectorTypes.includes(row.type);
+                          return (
+                            <button
+                              key={row.key}
+                              type="button"
+                              onClick={() => void handleChatConnectorToggle(row)}
+                              className="flex w-full items-center justify-between rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-[#f4f1eb]"
+                            >
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f7f5f1]">
+                                  <row.icon className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[13px] font-medium text-[#2f2b27]">{row.title}</div>
+                                  <div className="truncate text-[11px] leading-4 text-[#8a847c]">{row.description}</div>
+                                </div>
+                              </div>
+                              <Switch checked={enabledInChat} className="pointer-events-none" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-2 grid gap-1 rounded-[16px] border border-[#ece7df] bg-[#fbfaf8] p-1">
+                        <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                          <span>Add connectors</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
+                        </button>
+                        <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                          <span>Manage connectors</span>
+                          <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <button type="button" onClick={() => setLocation("/connectors")} className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
+                    <Monitor className="h-4.5 w-4.5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
+                    <AudioLines className="h-4.5 w-4.5" />
+                  </button>
+                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
+                    <Mic className="h-4.5 w-4.5" />
+                  </button>
+                  {streaming.active ? (
+                    <Button type="button" size="icon" variant="destructive" className="h-[44px] w-[44px] shrink-0" onClick={handleStop}>
+                      <StopCircle className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button type="submit" size="icon" disabled={!input.trim() || !canSend} className="h-[44px] w-[44px] shrink-0">
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {promoVisible ? (
+              <div className="flex items-start gap-4 border-t border-[#d9e9fb] bg-[#e9f4ff] px-6 py-4 text-[15px] leading-7 text-[#53677b]">
+                <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#3c82f6] text-white"><Gem className="h-4 w-4" /></div>
+                <div className="flex-1">
+                  <div><span>Your task on Forge Desktop consumes </span><span className="font-semibold">50% fewer credits</span></div>
+                  <div className="mt-1"><button type="button" className="font-medium text-[#3576df]">Download now</button></div>
+                </div>
+                <button type="button" onClick={() => setPromoVisible(false)} className="mt-1 text-[#7c8ca0]"><ChevronRight className="h-5 w-5 rotate-45" /></button>
+              </div>
+            ) : null}
+          </form>
+          {!canSend && !streaming.active && <p className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-500">Add a valid NVIDIA API key to start chatting.</p>}
+        </div>
+      </div>
     </div>
   );
 }

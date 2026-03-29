@@ -12,6 +12,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import * as claude from "../claude";
+import { ConnectorManager } from "../connectors/manager";
 
 import * as nvidia from "../nvidia";
 import { AVAILABLE_TOOLS, executeTool } from "../tools";
@@ -32,6 +33,21 @@ const TIER_CONFIG = {
   },
 } as const;
 
+let connectorManager: ConnectorManager | null = null;
+
+function getConnectorManager(): ConnectorManager {
+  if (!connectorManager) {
+    connectorManager = new ConnectorManager({
+      googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+      googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      githubClientId: process.env.GITHUB_CLIENT_ID || "",
+      githubClientSecret: process.env.GITHUB_CLIENT_SECRET || "",
+      appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`,
+    });
+  }
+  return connectorManager;
+}
+
 function getTierForModel(model?: string) {
   if (!model) return "core" as const;
   if (model === TIER_CONFIG.lite.model) return "lite" as const;
@@ -43,6 +59,39 @@ function calculateCreditCost(tokenCount: number, tier: keyof typeof TIER_CONFIG)
   const baseCost = 0.6;
   const tokenCost = Math.max(1, tokenCount) / 120;
   return Number((baseCost + tokenCost * TIER_CONFIG[tier].multiplier).toFixed(1));
+}
+
+async function buildGithubContext(userId: number, enabledConnectors?: string[]) {
+  const connectorEnabled = Array.isArray(enabledConnectors) ? enabledConnectors.includes("github") : false;
+  if (!connectorEnabled) return "";
+
+  try {
+    const state = await db.getConnectorState(userId, "github");
+    if (!state?.accessToken) return "";
+    const repoState = state.state ? JSON.parse(state.state) : {};
+    if (repoState?.enabled === false) return "";
+
+    const manager = getConnectorManager();
+    const connector = await manager.getGitHubConnector(userId);
+    const repositories = await connector.listRepositories(1, 12);
+    const selectedRepos = Array.isArray(repoState?.selectedRepos) ? repoState.selectedRepos : [];
+    const visibleRepos = selectedRepos.length
+      ? repositories.filter((repo) => selectedRepos.includes(repo.full_name))
+      : repositories.slice(0, 8);
+    const repoLines = visibleRepos.length
+      ? visibleRepos.map((repo) => `- ${repo.full_name}${repo.description ? `: ${repo.description}` : ""}`).join("\n")
+      : "- No repositories available";
+
+    return [
+      "GitHub connector is enabled for this conversation.",
+      "Use repository context when it helps answer the user.",
+      "Accessible repositories:",
+      repoLines,
+    ].join("\n");
+  } catch (error) {
+    console.warn("[Forge] Failed to build GitHub context:", error);
+    return "";
+  }
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -100,9 +149,11 @@ async function startServer() {
     const user = (req as any).user;
     const { messages, conversationId } = req.body;
     
+    let conv: any = null;
+
     // Verify conversation ownership
     if (conversationId) {
-      const conv = await db.getConversation(conversationId);
+      conv = await db.getConversation(conversationId);
       if (!conv || conv.userId !== user.id) {
         res.write(`data: ${JSON.stringify({ type: "error", content: "Unauthorized access to conversation" })}\n\n`);
         res.end();
@@ -144,7 +195,7 @@ async function startServer() {
     res.flushHeaders();
 
     const user = (req as any).user;
-    const { messages, model, conversationId, systemPrompt } = req.body;
+    const { messages, model, conversationId, systemPrompt, enabledConnectors } = req.body;
     
     // Verify conversation ownership
     if (conversationId) {
@@ -160,6 +211,11 @@ async function startServer() {
 
     if (systemPrompt) {
       nvidiaMessages.push({ role: "system", content: systemPrompt });
+    }
+
+    const githubContext = await buildGithubContext(user.id, enabledConnectors || conv?.enabledConnectors);
+    if (githubContext) {
+      nvidiaMessages.push({ role: "system", content: githubContext });
     }
 
     // Add memory context
