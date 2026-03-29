@@ -16,6 +16,7 @@ import Memory from "./pages/Memory";
 import Prompts from "./pages/Prompts";
 import Settings from "./pages/Settings";
 import Research from "./pages/Research";
+import Computer from "./pages/Computer";
 import Login from "./pages/Login";
 
 function Router() {
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/memory" component={Memory} />
         <Route path="/prompts" component={Prompts} />
         <Route path="/settings" component={Settings} />
+        <Route path="/computer" component={Computer} />
         <Route path="/chat/:id">{(params: { id: string }) => <Home conversationId={params.id} />}</Route>
             <Route component={NotFound} />
           </Switch>

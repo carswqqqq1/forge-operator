@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   Menu,
   Gem,
+  Monitor,
 } from "lucide-react";
 import { CSSProperties, useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -204,6 +205,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             >
               <Plug className="h-4 w-4 shrink-0" />
               {!isCollapsed && <span>Connectors</span>}
+            </button>
+
+            <button
+              onClick={() => setLocation("/computer")}
+              className={cn(
+                "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
+                isActive("/computer")
+                  ? "bg-[#f0ede7] text-foreground font-medium"
+                  : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
+              )}
+            >
+              <Monitor className="h-4 w-4 shrink-0" />
+              {!isCollapsed && <span>Computer</span>}
             </button>
           </div>
 
