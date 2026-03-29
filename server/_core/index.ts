@@ -191,6 +191,22 @@ async function startServer() {
         process.env.NVIDIA_MODEL_REASONING ||
         process.env.NVIDIA_MODEL_DEFAULT ||
         "meta/llama-3.1-70b-instruct";
+      const tier = getTierForModel(nvidiaModel);
+      const lastUserMessage = [...messages].reverse().find((message: any) => message.role === "user");
+      const estimatedPromptTokens = Math.max(12, Math.ceil(String(lastUserMessage?.content || "").length / 4));
+      const promptCost = calculateCreditCost(estimatedPromptTokens, tier);
+
+      if (conversationId) {
+        await db.consumeCredits({
+          userId: user.id,
+          amount: promptCost,
+          tier,
+          model: nvidiaModel,
+          tokenCount: estimatedPromptTokens,
+          conversationId,
+          note: "Prompt submitted",
+        });
+      }
 
       for await (const chunk of nvidia.nvidiaStreamChat(nvidiaKey!, {
         model: nvidiaModel,
@@ -220,7 +236,6 @@ async function startServer() {
 
       // Save to DB
       if (conversationId && fullContent) {
-        const tps = evalCount > 0 ? (evalCount / (evalDuration / 1e9)).toFixed(1) : "0";
         const finalModel = nvidiaModel;
         await db.addMessage({
           userId: user.id,
@@ -230,17 +245,6 @@ async function startServer() {
           model: finalModel,
           tokenCount: evalCount,
           tokensPerSecond: null,
-        });
-
-        const tier = getTierForModel(finalModel);
-        await db.consumeCredits({
-          userId: user.id,
-          amount: calculateCreditCost(evalCount, tier),
-          tier,
-          model: finalModel,
-          tokenCount: evalCount,
-          conversationId,
-          note: "Assistant response",
         });
       }
     } catch (error: any) {
