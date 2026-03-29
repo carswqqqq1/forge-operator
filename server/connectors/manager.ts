@@ -6,13 +6,16 @@
 import * as db from "../db";
 import { GoogleDriveConnector, type GoogleDriveConnectorState } from "./google-drive";
 import { GmailConnector, type GmailConnectorState } from "./gmail";
+import { GitHubConnector, type GitHubConnectorState } from "./github";
 
-export type ConnectorType = "google_drive" | "gmail";
-export type ConnectorState = GoogleDriveConnectorState | GmailConnectorState;
+export type ConnectorType = "google_drive" | "gmail" | "github";
+export type ConnectorState = GoogleDriveConnectorState | GmailConnectorState | GitHubConnectorState;
 
 export interface ConnectorConfig {
   googleClientId: string;
   googleClientSecret: string;
+  githubClientId: string;
+  githubClientSecret: string;
   appUrl: string;
 }
 
@@ -20,6 +23,7 @@ class ConnectorManager {
   private config: ConnectorConfig;
   private driveConnectors: Map<string, GoogleDriveConnector> = new Map();
   private gmailConnectors: Map<string, GmailConnector> = new Map();
+  private githubConnectors: Map<string, GitHubConnector> = new Map();
 
   constructor(config: ConnectorConfig) {
     this.config = config;
@@ -86,6 +90,36 @@ class ConnectorManager {
   }
 
   /**
+   * Get or create a GitHub connector for a user
+   */
+  async getGitHubConnector(userId: number): Promise<GitHubConnector> {
+    const cacheKey = `github_${userId}`;
+
+    if (this.githubConnectors.has(cacheKey)) {
+      return this.githubConnectors.get(cacheKey)!;
+    }
+
+    const connector = new GitHubConnector({
+      clientId: this.config.githubClientId,
+      clientSecret: this.config.githubClientSecret,
+      redirectUri: `${this.config.appUrl}/api/connectors/github/callback`,
+    });
+
+    // Load stored credentials if available
+    try {
+      const state = await db.getConnectorState(userId, "github");
+      if (state) {
+        connector.setCredentials(state as GitHubConnectorState);
+      }
+    } catch (error) {
+      console.warn("[ConnectorManager] Failed to load GitHub credentials:", error);
+    }
+
+    this.githubConnectors.set(cacheKey, connector);
+    return connector;
+  }
+
+  /**
    * Save connector state to database
    */
   async saveConnectorState(
@@ -129,6 +163,7 @@ class ConnectorManager {
       const cacheKey = `${connectorType.split("_")[0]}_${userId}`;
       this.driveConnectors.delete(cacheKey);
       this.gmailConnectors.delete(cacheKey);
+      this.githubConnectors.delete(cacheKey);
 
       // Remove from database
       await db.deleteConnectorState(userId, connectorType);
@@ -158,6 +193,7 @@ class ConnectorManager {
   clearCache(): void {
     this.driveConnectors.clear();
     this.gmailConnectors.clear();
+    this.githubConnectors.clear();
   }
 }
 
