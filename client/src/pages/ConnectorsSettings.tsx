@@ -1,297 +1,172 @@
-/**
- * Connectors Settings Component
- * Manage Google Drive, Gmail, and GitHub connections
- */
-
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Mail, FileText, CheckCircle2, Loader2, Link2, Unplug, Github, RefreshCw, ExternalLink
-} from "lucide-react";
-import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
+import { startConnectorAuth } from "@/lib/connector-auth";
+import { appDefinitions, type AppDefinition } from "@/components/connectors-data";
+import { Check, ChevronRight, Plug, RefreshCw, ShieldCheck } from "lucide-react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
-type ConnectorType = "google_drive" | "gmail" | "github";
+const connectorCopy: Record<string, { title: string; subtitle: string; bullets: string[] }> = {
+  github: {
+    title: "GitHub",
+    subtitle: "Read repositories, cite code, and surface project context into Forge tasks.",
+    bullets: ["List repositories", "Search repo files", "Read code and docs"],
+  },
+  gmail: {
+    title: "Gmail",
+    subtitle: "Search inbox threads, draft replies, and use email context inside tasks.",
+    bullets: ["Read threads", "Draft replies", "Summarize messages"],
+  },
+  google_drive: {
+    title: "Google Drive",
+    subtitle: "Search, read, and attach docs, PDFs, and files to Forge tasks.",
+    bullets: ["Browse files", "Read docs", "Attach file context"],
+  },
+};
 
-interface ConnectorStatus {
-  type: ConnectorType;
+function ConnectorBadge({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+        connected ? "bg-[#e8f6eb] text-[#2d7a44]" : "bg-[#f2efe9] text-[#7c756b]"
+      }`}
+    >
+      {connected ? <Check className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+      {connected ? "Connected" : "Needs approval"}
+    </span>
+  );
+}
+
+function ConnectorCard({
+  app,
+  connected,
+  onToggle,
+}: {
+  app: AppDefinition;
   connected: boolean;
-  name: string;
-  icon: React.ReactNode;
-  description: string;
-  color: string;
-  capabilities: string[];
-  envVars: string[];
+  onToggle: () => void;
+}) {
+  const copy = connectorCopy[app.type] ?? connectorCopy.github;
+  return (
+    <div className="rounded-[24px] border border-[#e7e1d7] bg-white p-5 shadow-[0_12px_35px_rgba(15,23,42,0.03)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-[#e7e1d7] bg-[#faf9f6]">
+            <app.icon className="h-7 w-7" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-[17px] font-semibold tracking-[-0.02em] text-[#322f2a]">{copy.title}</h3>
+              <ConnectorBadge connected={connected} />
+            </div>
+            <p className="max-w-[46rem] text-[13px] leading-6 text-[#746e66]">{copy.subtitle}</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggle}
+          className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-[13px] font-medium transition-colors ${
+            connected
+              ? "bg-[#f3f0ea] text-[#3b3632] hover:bg-[#ebe7df]"
+              : "bg-[#111111] text-white hover:bg-[#1f1f1f]"
+          }`}
+        >
+          {connected ? <RefreshCw className="h-4 w-4" /> : null}
+          {connected ? "Refresh access" : `Authorize ${copy.title}`}
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="grid gap-2 md:grid-cols-3">
+          {copy.bullets.map((bullet) => (
+            <div key={bullet} className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-3 py-2 text-[12px] text-[#665f58]">
+              {bullet}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-3 py-2 text-[12px] text-[#665f58]">
+          <Plug className="h-4 w-4" />
+          <span>Forge only sees data after you approve access.</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function ConnectorsSettings() {
-  const [connectors, setConnectors] = useState<ConnectorStatus[]>([
-    {
-      type: "github",
-      connected: false,
-      name: "GitHub",
-      icon: <Github className="h-5 w-5" />,
-      description: "Access your GitHub repositories directly in Forge to analyze, search, and cite code.",
-      color: "bg-zinc-900/10 text-zinc-900 border-zinc-900/20 dark:bg-white/10 dark:text-white dark:border-white/20",
-      capabilities: [
-        "Access your GitHub repositories directly in ChatGPT to analyze, search, and cite code.",
-        "Ask questions based on your own code.",
-        "Pull live data from your repositories—code, README files, and other docs."
-      ],
-      envVars: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "APP_URL"]
-    },
-    {
-      type: "gmail",
-      connected: false,
-      name: "Gmail",
-      icon: <Mail className="h-5 w-5" />,
-      description: "Inbox search, email drafting, and thread summaries",
-      color: "bg-red-500/10 text-red-500 border-red-500/20",
-      capabilities: [
-        "Search inbox threads and summarize the highest-priority conversations",
-        "Draft replies and follow-ups from task context",
-        "Use email history as memory for campaigns and automations"
-      ],
-      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_URL"]
-    },
-    {
-      type: "google_drive",
-      connected: false,
-      name: "Google Drive",
-      icon: <FileText className="h-5 w-5" />,
-      description: "Docs, files, search, and repo summaries",
-      color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-      capabilities: [
-        "List and browse your Drive files",
-        "Search for specific files",
-        "Download file contents",
-        "Access file metadata"
-      ],
-      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_URL"]
-    },
-  ]);
+  const { data: connectors, refetch } = trpc.connectors.list.useQuery();
 
-  const [loading, setLoading] = useState<string | null>(null);
-  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const connectorsByType = useMemo(() => {
+    const map = new Map<string, any>();
+    (connectors || []).forEach((connector: any) => {
+      if (!map.has(connector.type)) map.set(connector.type, connector);
+    });
+    return map;
+  }, [connectors]);
 
-  useEffect(() => {
-    fetchConnectorStatus();
-  }, []);
+  const handleToggle = async (app: AppDefinition) => {
+    const connected = connectorsByType.has(app.type);
 
-  const fetchConnectorStatus = async () => {
-    try {
-      const response = await fetch("/api/connectors/list", {
-        credentials: "include",
-      });
-
-      if (!response.ok) throw new Error("Failed to fetch connector status");
-
-      const data = await response.json();
-      const connectedServices = data.connectedServices || [];
-
-      setConnectors((prev) =>
-        prev.map((connector) => ({
-          ...connector,
-          connected: connectedServices.includes(connector.type),
-        }))
-      );
-    } catch (error) {
-      console.error("[ConnectorsSettings] Failed to fetch status:", error);
-    }
-  };
-
-  const handleConnect = async (service: ConnectorType) => {
-    setLoading(service);
-    try {
-      let authEndpoint = "";
-      if (service === "github") {
-        authEndpoint = "/api/connectors/github/auth";
-      } else {
-        authEndpoint = `/api/connectors/google/auth?service=${service === "google_drive" ? "drive" : "gmail"}`;
-      }
-
-      const response = await fetch(authEndpoint, {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to initiate authentication");
-      }
-
-      const data = await response.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      }
-    } catch (error) {
-      toast.error(`Failed to connect ${service.replace("_", " ")}`);
-      console.error("[ConnectorsSettings] Connection failed:", error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleDisconnect = async (service: ConnectorType) => {
-    setDisconnecting(service);
-    try {
+    if (connected) {
       const response = await fetch("/api/connectors/disconnect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ service }),
+        body: JSON.stringify({ service: app.type }),
       });
+      if (!response.ok) {
+        toast.error(`Failed to disconnect ${app.title}`);
+        return;
+      }
+      await refetch();
+      toast.success(`${app.title} disconnected`);
+      return;
+    }
 
-      if (!response.ok) throw new Error("Failed to disconnect");
+    try {
+      const authEndpoint =
+        app.type === "github"
+          ? "/api/connectors/github/auth"
+          : `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`;
 
-      setConnectors((prev) =>
-        prev.map((connector) =>
-          connector.type === service ? { ...connector, connected: false } : connector
-        )
-      );
+      const response = await fetch(authEndpoint, { credentials: "include" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || `Failed to start ${app.title} auth`);
+      }
 
-      toast.success(`${service.replace("_", " ")} disconnected`);
+      const data = await response.json();
+      await startConnectorAuth(data.authUrl, app.key);
+      await refetch();
+      toast.success(`${app.title} connected`);
     } catch (error) {
-      toast.error(`Failed to disconnect ${service.replace("_", " ")}`);
-      console.error("[ConnectorsSettings] Disconnection failed:", error);
-    } finally {
-      setDisconnecting(null);
+      console.error("[ConnectorsSettings] Connection failed:", error);
+      toast.error(`Failed to connect ${app.title}`);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Connected Services</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Connect your accounts to access files, emails, and code repositories
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="space-y-2">
+        <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#2f2b27]">Connectors</h2>
+        <p className="max-w-2xl text-[14px] leading-6 text-[#756f67]">
+          Connect the services Forge can actually act on. After approval, Forge can read context and use it inside tasks.
         </p>
       </div>
 
-      <div className="grid gap-6">
-        {connectors.map((connector) => (
-          <Card key={connector.type} className="bg-card border-border/50 overflow-hidden">
-            <CardContent className="p-0">
-              {/* Header Section */}
-              <div className="p-4 flex items-center justify-between border-b border-border/50 bg-muted/30">
-                <div className="flex items-center gap-3">
-                  <div className={`h-10 w-10 rounded-lg ${connector.color} flex items-center justify-center flex-shrink-0 border`}>
-                    {connector.icon}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold">{connector.name}</h3>
-                      {connector.connected && (
-                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] h-5 font-medium">
-                          Connected
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground font-medium">{connector.description}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {connector.connected ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs font-bold"
-                        onClick={() => fetchConnectorStatus()}
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" /> Refresh
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs font-bold"
-                      >
-                        Try in Forge <ExternalLink className="h-3 w-3 ml-1" />
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="h-8 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-                      onClick={() => handleConnect(connector.type)}
-                      disabled={loading === connector.type}
-                    >
-                      {loading === connector.type ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : `Authorize ${connector.name}`}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Content Section */}
-              <div className="grid md:grid-cols-2 divide-x divide-border/50">
-                {/* Left: Capabilities */}
-                <div className="p-4 space-y-4">
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">What Forge can do</h4>
-                    <ul className="space-y-2">
-                      {connector.capabilities.map((cap, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs font-medium">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span>{cap}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Required env / auth</h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {connector.envVars.map((env) => (
-                        <code key={env} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono border border-border/50">
-                          {env}
-                        </code>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Status/Action */}
-                <div className="p-4 bg-muted/10 flex flex-col justify-center items-center text-center min-h-[160px]">
-                  {connector.connected ? (
-                    <div className="space-y-3">
-                      <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-green-500/10 text-green-500 mb-1">
-                        <CheckCircle2 className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold uppercase tracking-tight">{connector.name} account connected</h4>
-                        <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
-                          Forge can access the connected {connector.name} account for this app and pull live context into tasks.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 w-full max-w-[280px]">
-                      <div className="space-y-2">
-                        {[1, 2, 3].map((step) => (
-                          <div key={step} className="flex items-center gap-3 p-2 rounded-lg border border-border/50 bg-background text-left">
-                            <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md bg-muted text-[10px] font-bold border border-border/50">
-                              {step}
-                            </span>
-                            <span className="text-[10px] font-medium text-muted-foreground leading-tight">
-                              {step === 1 && `Create a ${connector.name} OAuth App or add a token for local development.`}
-                              {step === 2 && `Grant ${connector.type === 'github' ? 'repo' : 'account'} access for the resources you want Forge to inspect.`}
-                              {step === 3 && `Store the token server-side so task runs can search and read resources.`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid gap-4">
+        {appDefinitions.map((app) => (
+          <ConnectorCard key={app.key} app={app} connected={connectorsByType.has(app.type)} onToggle={() => void handleToggle(app)} />
         ))}
+      </div>
+
+      <div className="rounded-[24px] border border-[#e7e1d7] bg-[#fbfaf8] p-5 text-[13px] leading-6 text-[#6f685f]">
+        <div className="font-semibold text-[#322f2a]">What happens after you sign in</div>
+        <div className="mt-2 grid gap-2 md:grid-cols-3">
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Forge can read only the scopes you approved.</div>
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Connector state stays saved per user and reloads automatically.</div>
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">You can disconnect anytime from this page or in settings.</div>
+        </div>
       </div>
     </div>
   );

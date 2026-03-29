@@ -14,6 +14,7 @@ import {
   Sparkles,
   Search,
   Library,
+  Plug,
   FolderPlus,
   Plus,
   ChevronDown,
@@ -23,7 +24,6 @@ import {
   Filter,
   Bell,
   SlidersHorizontal,
-  Plug,
   Menu,
   Gem,
 } from "lucide-react";
@@ -191,6 +191,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             >
               <Library className="h-4 w-4 shrink-0" />
               {!isCollapsed && <span>Library</span>}
+            </button>
+
+            <button
+              onClick={() => setLocation("/connectors")}
+              className={cn(
+                "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
+                location.startsWith("/connectors")
+                  ? "bg-[#f0ede7] text-foreground font-medium"
+                  : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
+              )}
+            >
+              <Plug className="h-4 w-4 shrink-0" />
+              {!isCollapsed && <span>Connectors</span>}
             </button>
           </div>
 
