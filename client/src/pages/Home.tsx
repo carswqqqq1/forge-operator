@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { startConnectorAuth } from "@/lib/connector-auth";
+import { GithubBrandIcon, GmailBrandIcon, GoogleDriveBrandIcon } from "@/components/connectors-data";
 import {
   Send,
   Sparkles,
@@ -11,7 +15,6 @@ import {
   Terminal,
   ChevronDown,
   ChevronRight,
-  Github,
   Plus,
   Monitor,
   Palette,
@@ -25,6 +28,7 @@ import {
   FileText,
   BarChart3,
   Gem,
+  Link2,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Streamdown } from "streamdown";
@@ -147,12 +151,75 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const { data: messageList, refetch: refetchMessages } = trpc.messages.list.useQuery({ conversationId: convId! }, { enabled: !!convId, refetchInterval: false });
   const { data: nvidiaStatus } = trpc.nvidia.status.useQuery();
   const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
+  const { data: connectors, refetch: refetchConnectors } = trpc.connectors.list.useQuery(undefined, { refetchInterval: 5000 });
   const createConversation = trpc.conversations.create.useMutation();
   const addMessage = trpc.messages.create.useMutation({ onSuccess: () => refetchMessages() });
 
   const isNvidiaReady = !!nvidiaStatus?.connected;
   const canSend = isNvidiaReady;
   const credits = Math.max(0, Math.round(usageState?.credits ?? 851));
+  const connectorsByType = useMemo(() => {
+    const map = new Map<string, any>();
+    (connectors || []).forEach((connector: any) => {
+      if (!map.has(connector.type)) map.set(connector.type, connector);
+    });
+    return map;
+  }, [connectors]);
+
+  const connectorRows = [
+    {
+      key: "github",
+      type: "github",
+      title: "GitHub",
+      description: "Analyze repositories, cite code, and track changes.",
+      icon: GithubBrandIcon,
+      authUrl: "/api/connectors/github/auth",
+    },
+    {
+      key: "gmail",
+      type: "gmail",
+      title: "Gmail",
+      description: "Search, summarize, and draft email replies.",
+      icon: GmailBrandIcon,
+      authUrl: "/api/connectors/google/auth?service=gmail",
+    },
+    {
+      key: "google_drive",
+      type: "google_drive",
+      title: "Google Drive",
+      description: "Read docs, search files, and pull file context.",
+      icon: GoogleDriveBrandIcon,
+      authUrl: "/api/connectors/google/auth?service=drive",
+    },
+  ] as const;
+
+  const handleConnectorToggle = useCallback(async (row: (typeof connectorRows)[number]) => {
+    const connected = connectorsByType.has(row.type);
+    try {
+      if (connected) {
+        const response = await fetch("/api/connectors/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ service: row.type }),
+        });
+        if (!response.ok) throw new Error("Failed to disconnect connector");
+        await refetchConnectors();
+        return;
+      }
+
+      const response = await fetch(row.authUrl, { credentials: "include" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to begin connector auth");
+      }
+      const { authUrl } = await response.json();
+      await startConnectorAuth(authUrl, row.key);
+      await refetchConnectors();
+    } catch (error) {
+      console.error("[Forge] Connector auth error", error);
+    }
+  }, [connectorsByType, refetchConnectors]);
 
   useEffect(() => {
     if (conversation?.model) return void setSelectedModel(conversation.model);
@@ -175,10 +242,35 @@ export default function Home({ conversationId }: { conversationId?: string }) {
 
   const displayMessages = useMemo(() => (messageList || []).filter((m) => m.role !== "system"), [messageList]);
 
+  const ensureLocalSession = useCallback(async () => {
+    const response = await fetch("/api/auth/dev-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        provider: "email",
+        email: "local-user@forge.local",
+        name: "Forge Local User",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Unable to establish a local session");
+    }
+  }, []);
+
   const handleStreamingSend = useCallback(async (targetConvId: number, content: string) => {
     const controller = new AbortController();
     abortRef.current = controller;
-    await addMessage.mutateAsync({ conversationId: targetConvId, content, model: selectedModel }).catch(() => {});
+    try {
+      await addMessage.mutateAsync({ conversationId: targetConvId, content, model: selectedModel });
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      if (message.includes("Please login") || message.includes("UNAUTHORIZED")) {
+        await ensureLocalSession();
+        await addMessage.mutateAsync({ conversationId: targetConvId, content, model: selectedModel });
+      }
+    }
     const allMsgs = await refetchMessages();
     const history = (allMsgs.data || []).map((m) => ({ role: m.role as string, content: m.content }));
     setStreaming({ active: true, content: "", tokenCount: 0, startTime: Date.now(), toolCalls: [] });
@@ -240,7 +332,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
       abortRef.current = null;
       refetchMessages();
     }
-  }, [selectedModel, conversation, addMessage, refetchMessages]);
+  }, [selectedModel, conversation, addMessage, refetchMessages, ensureLocalSession]);
 
   useEffect(() => {
     if (!convId || streaming.active || pendingPromptHandledRef.current === convId) return;
@@ -263,7 +355,20 @@ export default function Home({ conversationId }: { conversationId?: string }) {
         window.sessionStorage.setItem(pendingPromptKey(newConv.id), content);
         setLocation(`/chat/${newConv.id}`);
         return;
-      } catch {
+      } catch (error: any) {
+        const message = String(error?.message || "");
+        if (message.includes("Please login") || message.includes("UNAUTHORIZED")) {
+          try {
+            await ensureLocalSession();
+            const newConv = await createConversation.mutateAsync({ model: selectedModel || undefined });
+            targetConvId = newConv.id;
+            window.sessionStorage.setItem(pendingPromptKey(newConv.id), content);
+            setLocation(`/chat/${newConv.id}`);
+            return;
+          } catch {
+            return;
+          }
+        }
         return;
       }
     }
@@ -318,8 +423,51 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                   <div className="mt-4 flex items-center justify-between pb-4">
                     <div className="flex items-center gap-3">
                       <button type="button" className="flex h-14 w-14 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f0eeea]"><Plus className="h-6 w-6" /></button>
-                      <button type="button" onClick={() => setLocation("/connectors")} className="flex h-14 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-5 text-[16px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f0eeea]"><Github className="h-5 w-5" /><span>+1</span></button>
-                      <button type="button" onClick={() => setLocation("/scheduled")} className="flex h-14 w-14 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f0eeea]"><Monitor className="h-5 w-5" /></button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button" className="flex h-14 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-5 text-[16px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f0eeea]">
+                            <Link2 className="h-5 w-5" />
+                            <span>{connectorsByType.size ? `+${connectorsByType.size}` : "+0"}</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" sideOffset={12} className="w-[340px] rounded-[24px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
+                          <div className="space-y-1">
+                            {connectorRows.map((row) => {
+                              const connected = connectorsByType.has(row.type);
+                              return (
+                                <button
+                                  key={row.key}
+                                  type="button"
+                                  onClick={() => handleConnectorToggle(row)}
+                                  className="flex w-full items-center justify-between rounded-[18px] px-3 py-2.5 text-left transition-colors hover:bg-[#f3f0ea]"
+                                >
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <div className="grid h-9 w-9 place-items-center rounded-full bg-[#f7f5f1]">
+                                      <row.icon className="h-6 w-6" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-[14px] font-medium text-[#2f2b27]">{row.title}</div>
+                                      <div className="truncate text-[12px] leading-4 text-[#8a847c]">{row.description}</div>
+                                    </div>
+                                  </div>
+                                  <Switch checked={connected} className="pointer-events-none" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-2 grid gap-1 rounded-[18px] border border-[#ece7df] bg-[#fbfaf8] p-1">
+                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                              <span>Add connectors</span>
+                              <ChevronRight className="h-4 w-4 text-[#8a847c]" />
+                            </button>
+                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                              <span>Manage connectors</span>
+                              <ChevronRight className="h-4 w-4 text-[#8a847c]" />
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <button type="button" onClick={() => setLocation("/connectors")} className="flex h-14 w-14 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f0eeea]"><Monitor className="h-5 w-5" /></button>
                     </div>
 
                     <div className="flex items-center gap-3">

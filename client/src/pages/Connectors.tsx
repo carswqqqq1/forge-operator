@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc"
+import type { ComponentType } from "react"
 import {
   Check,
   ChevronRight,
@@ -18,6 +19,7 @@ import {
 import { useMemo, useState } from "react"
 import { useLocation } from "wouter"
 import { toast } from "sonner"
+import { startConnectorAuth } from "@/lib/connector-auth"
 
 type Screen = "main" | "add" | "manage"
 type Tab = "apps" | "api" | "mcp"
@@ -29,7 +31,7 @@ type AppDefinition = {
   description: string
   mode: "toggle" | "connect"
   beta?: boolean
-  icon: (props: { className?: string }) => JSX.Element
+  icon: ComponentType<{ className?: string }>
   config?: Record<string, unknown>
 }
 
@@ -172,7 +174,7 @@ const appDefinitions: AppDefinition[] = [
     description: "Manage repositories, track code changes, and collaborate on team projects",
     mode: "toggle",
     icon: GithubBrandIcon,
-    config: { scopes: ["repo", "issues:read", "pull_requests:read"] },
+    config: { scopes: ["repo", "read:user", "read:org"] },
   },
   {
     key: "gmail",
@@ -181,113 +183,25 @@ const appDefinitions: AppDefinition[] = [
     description: "Draft replies, search your inbox, and summarize email threads instantly",
     mode: "toggle",
     icon: GmailBrandIcon,
-    config: { scopes: ["gmail.readonly", "gmail.send"] },
-  },
-  {
-    key: "google-calendar",
-    title: "Google Calendar",
-    type: "google-calendar",
-    description: "Understand your schedule, manage events, and optimize your time effectively",
-    mode: "toggle",
-    icon: GoogleCalendarBrandIcon,
-    config: { scopes: ["calendar.readonly"] },
+    config: { scopes: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send"] },
   },
   {
     key: "google-drive",
     title: "Google Drive",
-    type: "google-drive",
-    description: "Access your files, search instantly, and let Manus help you manage documents",
+    type: "google_drive",
+    description: "Access your files, search instantly, and let Forge help you manage documents",
     mode: "toggle",
     icon: GoogleDriveBrandIcon,
-    config: { scopes: ["drive.readonly"] },
-  },
-  {
-    key: "instagram",
-    title: "Instagram",
-    type: "instagram",
-    description: "Generate and publish Posts, Stories, or Reels to Instagram.",
-    mode: "toggle",
-    beta: true,
-    icon: InstagramBrandIcon,
-    config: { beta: true, channel: "instagram" },
-  },
-  {
-    key: "browser",
-    title: "My Browser",
-    type: "browser",
-    description: "Access the web on your own browser",
-    mode: "toggle",
-    icon: ChromeBrandIcon,
-    config: { mode: "browser-control" },
-  },
-  {
-    key: "stripe",
-    title: "Stripe",
-    type: "stripe",
-    description: "Streamline business billing, payments, and account management",
-    mode: "toggle",
-    icon: StripeBrandIcon,
-    config: { mode: "billing" },
-  },
-  {
-    key: "vercel",
-    title: "Vercel",
-    type: "vercel",
-    description: "Manage Vercel projects, deployments, and domains",
-    mode: "toggle",
-    icon: VercelBrandIcon,
-    config: { surface: "deployments" },
-  },
-  {
-    key: "meta-ads-manager",
-    title: "Meta Ads Manager",
-    type: "meta-ads-manager",
-    description: "Manage campaigns, ads, and account performance with Meta tools.",
-    mode: "connect",
-    beta: true,
-    icon: MetaBrandIcon,
-    config: { provider: "meta-ads-manager" },
-  },
-  {
-    key: "instagram-creator-marketplace",
-    title: "Instagram Creator Marketplace",
-    type: "instagram-creator-marketplace",
-    description: "Discover creators that fit your brand’s reach, topics, and style.",
-    mode: "connect",
-    beta: true,
-    icon: InstagramBrandIcon,
-    config: { provider: "instagram-creator-marketplace" },
-  },
-  {
-    key: "outlook-mail",
-    title: "Outlook Mail",
-    type: "outlook-mail",
-    description: "Write, search, and manage your Outlook emails seamlessly within Manus",
-    mode: "connect",
-    icon: OutlookMailBrandIcon,
-    config: { provider: "outlook-mail" },
-  },
-  {
-    key: "outlook-calendar",
-    title: "Outlook Calendar",
-    type: "outlook-calendar",
-    description: "Schedule, view, and manage your Outlook events just with a prompt",
-    mode: "connect",
-    icon: OutlookCalendarBrandIcon,
-    config: { provider: "outlook-calendar" },
+    config: {
+      scopes: [
+        "https://www.googleapis.com/auth/drive.readonly",
+        "https://www.googleapis.com/auth/documents.readonly",
+      ],
+    },
   },
 ]
 
-const customApis: ApiDefinition[] = [
-  { key: "openai", title: "OpenAI", description: "Leverage GPT model series for intelligent text generation and processing", icon: Sparkles },
-  { key: "anthropic", title: "Anthropic", description: "Access reliable AI assistant services with safe and intelligent conversations", icon: Bot },
-  { key: "gemini", title: "Google Gemini", description: "Process multimodal content including text, images, and code seamlessly", icon: Sparkles },
-  { key: "perplexity", title: "Perplexity", description: "Search real-time information and get accurate answers with reliable citations", icon: Search },
-  { key: "cohere", title: "Cohere", description: "Build enterprise AI applications and optimize text processing workflows", icon: Database },
-  { key: "elevenlabs", title: "ElevenLabs", description: "Generate realistic voices, clone speech, and create custom audio content", icon: AudioLines },
-  { key: "grok", title: "Grok", description: "Access real-time information and engage in intelligent conversations", icon: Bot },
-  { key: "openrouter", title: "OpenRouter", description: "Access multiple AI models and manage API routing from one place", icon: Globe },
-]
+const customApis: ApiDefinition[] = []
 
 function PillToggle({ checked, onClick }: { checked: boolean; onClick: () => void }) {
   return (
@@ -313,8 +227,8 @@ function BetaBadge() {
 
 function AppIconTile({ icon: Icon }: { icon: any }) {
   return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-transparent text-[#2f2b27]">
-      <Icon className="h-8 w-8" />
+    <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-transparent text-[#2f2b27]">
+      <Icon className="h-6 w-6" />
     </div>
   )
 }
@@ -341,10 +255,10 @@ function Row({
   onConnect: () => void
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-9 py-6">
-      <div className="flex min-w-0 items-center gap-5">
+    <div className="flex items-center justify-between gap-4 px-6 py-4">
+      <div className="flex min-w-0 items-center gap-4">
         <AppIconTile icon={app.icon} />
-        <div className="min-w-0 flex items-center gap-3 text-[28px] font-normal tracking-[-0.02em] text-[#2f2b27]">
+        <div className="min-w-0 flex items-center gap-2 text-[18px] font-medium tracking-[-0.02em] text-[#2f2b27]">
           <span className="truncate">{app.title}</span>
           {app.beta ? <BetaBadge /> : null}
         </div>
@@ -352,7 +266,7 @@ function Row({
       {app.mode === "toggle" ? (
         <PillToggle checked={connected} onClick={onToggle} />
       ) : (
-        <button type="button" onClick={onConnect} className="text-[28px] font-normal text-[#857f78]">
+        <button type="button" onClick={onConnect} className="text-[18px] font-normal text-[#857f78]">
           Connect
         </button>
       )}
@@ -363,8 +277,6 @@ function Row({
 export default function Connectors() {
   const [, setLocation] = useLocation()
   const { data: connectors, refetch } = trpc.connectors.list.useQuery()
-  const createConnector = trpc.connectors.create.useMutation({ onSuccess: () => refetch() })
-  const deleteConnector = trpc.connectors.delete.useMutation({ onSuccess: () => refetch() })
 
   const [screen, setScreen] = useState<Screen>("main")
   const [tab, setTab] = useState<Tab>("apps")
@@ -379,70 +291,89 @@ export default function Connectors() {
 
   const isConnected = (type: string) => connectorsByType.has(type)
 
-  const ensureConnected = (app: AppDefinition) => {
-    if (isConnected(app.type)) {
-      toast.message(`${app.title} is already connected`)
-      return
+  const handleAuth = async (app: AppDefinition) => {
+    const alreadyConnected = isConnected(app.type)
+    if (alreadyConnected) {
+      try {
+        const response = await fetch("/api/connectors/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ service: app.type }),
+        })
+        if (!response.ok) throw new Error("Failed to disconnect")
+        await refetch()
+        toast.success(`${app.title} disconnected`)
+        return
+      } catch (error) {
+        console.error("[Connectors] Disconnect failed:", error)
+        toast.error(`Failed to disconnect ${app.title}`)
+        return
+      }
     }
-    createConnector.mutate({
-      name: app.title,
-      type: app.type,
-      config: JSON.stringify(app.config || {}, null, 2),
-    })
-    toast.success(`${app.title} connected`)
+
+    try {
+      let authEndpoint = ""
+      if (app.type === "github") {
+        authEndpoint = "/api/connectors/github/auth"
+      } else {
+        authEndpoint = `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`
+      }
+
+      const response = await fetch(authEndpoint, { credentials: "include" })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error || "Failed to initiate authentication")
+      }
+
+      const data = await response.json()
+      await startConnectorAuth(data.authUrl, app.key)
+      await refetch()
+      toast.success(`${app.title} connected`)
+    } catch (error) {
+      console.error("[Connectors] Connection failed:", error)
+      toast.error(`Failed to connect ${app.title}`)
+    }
   }
 
-  const toggleApp = (app: AppDefinition) => {
-    const existing = connectorsByType.get(app.type) as any
-    if (existing) {
-      deleteConnector.mutate({ id: existing.id })
-      toast.success(`${app.title} disconnected`)
-      return
-    }
-    createConnector.mutate({
-      name: app.title,
-      type: app.type,
-      config: JSON.stringify(app.config || {}, null, 2),
-    })
-    toast.success(`${app.title} connected`)
-  }
+  const toggleApp = (app: AppDefinition) => void handleAuth(app)
 
   const closeOverlay = () => setLocation("/")
 
-  const mainToggleApps = appDefinitions.filter((app) => ["github", "gmail", "google-calendar", "google-drive", "instagram", "browser", "stripe", "vercel"].includes(app.key))
-  const mainConnectApps = appDefinitions.filter((app) => ["meta-ads-manager", "instagram-creator-marketplace", "outlook-mail", "outlook-calendar"].includes(app.key))
+  const mainToggleApps: AppDefinition[] = appDefinitions
+  const mainConnectApps: AppDefinition[] = []
 
   const MainSheet = (
-    <div className="mx-auto w-full max-w-[1100px] rounded-t-[34px] bg-[#f7f6f3] pt-4 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px]">
+    <div className="mx-auto w-full max-w-[860px] rounded-t-[34px] bg-[#f7f6f3] pt-4 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px]">
       <div className="mx-auto mb-5 h-2 w-[102px] rounded-full bg-[#d3d1cb] md:hidden" />
-      <div className="px-8 pb-4 text-[31px] font-semibold tracking-[-0.03em] text-[#3b3632]">Connectors</div>
+      <div className="px-6 pb-4 text-[28px] font-semibold tracking-[-0.03em] text-[#3b3632]">Connectors</div>
 
-      <div className="mx-6 overflow-hidden rounded-[32px] border border-[#ece8e1] bg-[#f7f6f3]">
-        <div className="max-h-[560px] overflow-y-auto">
+      <div className="mx-4 overflow-hidden rounded-[28px] border border-[#ece8e1] bg-[#f7f6f3]">
+        <div className="max-h-[460px] overflow-y-auto">
           {mainToggleApps.map((app, index) => (
             <div key={app.key} className={index === mainToggleApps.length - 1 && mainConnectApps.length === 0 ? "" : "border-b border-[#e8e4dc]"}>
-              <Row app={app} connected={isConnected(app.type)} onToggle={() => toggleApp(app)} onConnect={() => ensureConnected(app)} />
+              <Row app={app} connected={isConnected(app.type)} onToggle={() => toggleApp(app)} onConnect={() => toggleApp(app)} />
             </div>
           ))}
           {mainConnectApps.map((app, index) => (
             <div key={app.key} className={index === mainConnectApps.length - 1 ? "" : "border-b border-[#e8e4dc]"}>
-              <Row app={app} connected={false} onToggle={() => toggleApp(app)} onConnect={() => ensureConnected(app)} />
+              <Row app={app} connected={false} onToggle={() => toggleApp(app)} onConnect={() => toggleApp(app)} />
             </div>
           ))}
         </div>
       </div>
 
-      <div className="mx-6 mt-3 overflow-hidden rounded-[28px] border border-[#ece8e1] bg-[#f7f6f3]">
+      <div className="mx-4 mt-3 overflow-hidden rounded-[24px] border border-[#ece8e1] bg-[#f7f6f3]">
         <button
           type="button"
           onClick={() => {
             setScreen("add")
             setTab("apps")
           }}
-          className="flex w-full items-center justify-between px-9 py-7 text-left"
+          className="flex w-full items-center justify-between px-6 py-5 text-left"
         >
-          <div className="flex items-center gap-6 text-[28px] tracking-[-0.02em] text-[#2f2b27]">
-            <Plus className="h-9 w-9" />
+          <div className="flex items-center gap-4 text-[20px] tracking-[-0.02em] text-[#2f2b27]">
+            <Plus className="h-6 w-6" />
             <span>Add connectors</span>
           </div>
           <div className="flex items-center gap-5">
@@ -454,13 +385,13 @@ export default function Connectors() {
         <button
           type="button"
           onClick={() => setScreen("manage")}
-          className="flex w-full items-center justify-between px-9 py-7 text-left"
+          className="flex w-full items-center justify-between px-6 py-5 text-left"
         >
-          <div className="flex items-center gap-6 text-[28px] tracking-[-0.02em] text-[#2f2b27]">
-            <SlidersHorizontal className="h-8 w-8" />
+          <div className="flex items-center gap-4 text-[20px] tracking-[-0.02em] text-[#2f2b27]">
+            <SlidersHorizontal className="h-6 w-6" />
             <span>Manage connectors</span>
           </div>
-          <ChevronRight className="h-8 w-8 text-[#8a847c]" />
+          <ChevronRight className="h-6 w-6 text-[#8a847c]" />
         </button>
       </div>
     </div>
@@ -468,25 +399,25 @@ export default function Connectors() {
 
   const AddAppsView = (
     <div className="max-h-[70vh] overflow-y-auto pr-1">
-      <div className="space-y-4 pb-3">
+      <div className="space-y-3 pb-3">
         {appDefinitions.map((app) => {
           const connected = isConnected(app.type)
           return (
             <button
               key={app.key}
               type="button"
-              onClick={() => !connected && ensureConnected(app)}
-              className="flex w-full items-start gap-4 rounded-[26px] bg-[#f4f3f0] px-5 py-5 text-left transition-colors hover:bg-[#efede8]"
+              onClick={() => void handleAuth(app)}
+              className="flex w-full items-center gap-4 rounded-[22px] bg-[#f4f3f0] px-4 py-4 text-left transition-colors hover:bg-[#efede8]"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[#e4e0d9] bg-white">
-                <app.icon className="h-7 w-7" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[#e4e0d9] bg-white">
+                <app.icon className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[18px] font-semibold leading-6 text-[#2f2b27]">
+                <div className="flex items-center gap-2 text-[16px] font-semibold leading-6 text-[#2f2b27]">
                   <span>{app.title}</span>
                   {app.beta ? <BetaBadge /> : null}
                 </div>
-                <div className="mt-1 text-[15px] leading-7 text-[#7a746c]">{app.description}</div>
+                <div className="mt-1 text-[13px] leading-6 text-[#7a746c]">{app.description}</div>
               </div>
               <div className="pt-2 text-[#5cb95c]">{connected ? <Check className="h-7 w-7" /> : null}</div>
             </button>
@@ -498,17 +429,17 @@ export default function Connectors() {
 
   const AddApiView = (
     <div className="max-h-[70vh] overflow-y-auto pr-1">
-      <div className="space-y-4 pb-3">
-        <div className="flex items-start gap-3 rounded-[20px] bg-[#efeeeb] px-4 py-4 text-[16px] leading-7 text-[#69635c]">
+      <div className="space-y-3 pb-3">
+        <div className="flex items-start gap-3 rounded-[18px] bg-[#efeeeb] px-4 py-4 text-[14px] leading-6 text-[#69635c]">
           <KeyRound className="mt-1 h-5 w-5 shrink-0 text-[#7b756e]" />
           <span>Connect Manus to any third-party service using your own API keys.</span>
         </div>
         {customApis.map((item) => (
-          <button key={item.key} type="button" onClick={() => toast.message(`${item.title} custom API UI added`)} className="flex w-full items-start gap-4 rounded-[26px] bg-[#f4f3f0] px-4 py-5 text-left transition-colors hover:bg-[#efede8]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[#e4e0d9] bg-white"><item.icon className="h-6 w-6 text-[#2f2b27]" /></div>
+          <button key={item.key} type="button" onClick={() => toast.message(`${item.title} custom API UI added`)} className="flex w-full items-start gap-4 rounded-[22px] bg-[#f4f3f0] px-4 py-4 text-left transition-colors hover:bg-[#efede8]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[#e4e0d9] bg-white"><item.icon className="h-5 w-5 text-[#2f2b27]" /></div>
             <div className="min-w-0 flex-1">
-              <div className="text-[18px] font-semibold leading-6 text-[#2f2b27]">{item.title}</div>
-              <div className="mt-1 text-[15px] leading-7 text-[#7a746c]">{item.description}</div>
+              <div className="text-[16px] font-semibold leading-6 text-[#2f2b27]">{item.title}</div>
+              <div className="mt-1 text-[13px] leading-6 text-[#7a746c]">{item.description}</div>
             </div>
           </button>
         ))}
@@ -517,15 +448,15 @@ export default function Connectors() {
   )
 
   const AddMcpView = (
-    <div className="flex min-h-[56vh] flex-col items-center justify-center px-4 text-center">
-      <PlugZap className="h-10 w-10 text-[#9a948d]" />
-      <div className="mt-6 text-[18px] font-semibold text-[#6a645d]">Not supported on mobile</div>
-      <div className="mt-2 max-w-[260px] text-[15px] leading-7 text-[#9a948d]">Add a custom MCP on the desktop version.</div>
-    </div>
+      <div className="flex min-h-[42vh] flex-col items-center justify-center px-4 text-center">
+        <PlugZap className="h-10 w-10 text-[#9a948d]" />
+        <div className="mt-6 text-[18px] font-semibold text-[#6a645d]">Not supported on mobile</div>
+        <div className="mt-2 max-w-[260px] text-[14px] leading-6 text-[#9a948d]">Add a custom MCP on the desktop version.</div>
+      </div>
   )
 
   const AddSheet = (
-    <div className="mx-auto w-full max-w-[900px] rounded-t-[34px] bg-[#f7f6f3] px-4 pb-4 pt-5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px] md:px-6">
+    <div className="mx-auto w-full max-w-[860px] rounded-t-[34px] bg-[#f7f6f3] px-4 pb-4 pt-5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px] md:px-6">
       <div className="mb-4 flex items-center justify-between">
         <button type="button" onClick={() => setScreen("main")} className="flex h-11 w-11 items-center justify-center rounded-full text-[#3b3632] hover:bg-[#efede8]"><X className="h-7 w-7" /></button>
         <div className="text-[18px] font-semibold text-[#3b3632]">Add connectors</div>
@@ -533,7 +464,7 @@ export default function Connectors() {
       </div>
       <div className="mb-5 flex gap-3">
         {[{ key: "apps", label: "Apps" }, { key: "api", label: "Custom API" }, { key: "mcp", label: "Custom MCP" }].map((item) => (
-          <button key={item.key} type="button" onClick={() => setTab(item.key as Tab)} className={`rounded-full border px-6 py-3 text-[18px] font-semibold transition-colors ${tab === item.key ? "border-black bg-black text-white" : "border-[#ddd8cf] bg-transparent text-[#99938b]"}`}>{item.label}</button>
+          <button key={item.key} type="button" onClick={() => setTab(item.key as Tab)} className={`rounded-full border px-5 py-2.5 text-[15px] font-semibold transition-colors ${tab === item.key ? "border-black bg-black text-white" : "border-[#ddd8cf] bg-transparent text-[#99938b]"}`}>{item.label}</button>
         ))}
       </div>
       {tab === "apps" ? AddAppsView : null}
@@ -543,7 +474,7 @@ export default function Connectors() {
   )
 
   const ManageSheet = (
-    <div className="mx-auto w-full max-w-[900px] rounded-t-[34px] bg-[#f7f6f3] px-4 pb-4 pt-5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px] md:px-6">
+    <div className="mx-auto w-full max-w-[860px] rounded-t-[34px] bg-[#f7f6f3] px-4 pb-4 pt-5 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] md:rounded-[34px] md:px-6">
       <div className="mb-4 flex items-center justify-between">
         <button type="button" onClick={() => setScreen("main")} className="flex h-11 w-11 items-center justify-center rounded-full text-[#3b3632] hover:bg-[#efede8]"><X className="h-7 w-7" /></button>
         <div className="text-[18px] font-semibold text-[#3b3632]">Connectors</div>
@@ -552,13 +483,13 @@ export default function Connectors() {
       <div className="max-h-[72vh] overflow-y-auto pr-1">
         <div className="space-y-4 pb-4">
           {appDefinitions.map((app) => (
-            <button key={app.key} type="button" onClick={() => app.mode === "toggle" ? toggleApp(app) : ensureConnected(app)} className="flex w-full items-start gap-4 rounded-[26px] bg-[#f4f3f0] px-4 py-5 text-left transition-colors hover:bg-[#efede8]">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[14px] border border-[#e4e0d9] bg-white"><app.icon className="h-7 w-7" /></div>
+            <button key={app.key} type="button" onClick={() => handleAuth(app)} className="flex w-full items-center gap-4 rounded-[22px] bg-[#f4f3f0] px-4 py-4 text-left transition-colors hover:bg-[#efede8]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[12px] border border-[#e4e0d9] bg-white"><app.icon className="h-6 w-6" /></div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[18px] font-semibold leading-6 text-[#2f2b27]"><span>{app.title}</span>{app.beta ? <BetaBadge /> : null}</div>
-                <div className="mt-1 text-[15px] leading-7 text-[#7a746c]">{app.description}</div>
+                <div className="flex items-center gap-2 text-[16px] font-semibold leading-6 text-[#2f2b27]"><span>{app.title}</span>{app.beta ? <BetaBadge /> : null}</div>
+                <div className="mt-1 text-[13px] leading-6 text-[#7a746c]">{app.description}</div>
               </div>
-              <ChevronRight className="mt-3 h-6 w-6 shrink-0 text-[#8a847c]" />
+              <ChevronRight className="h-5 w-5 shrink-0 text-[#8a847c]" />
             </button>
           ))}
         </div>
