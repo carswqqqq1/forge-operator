@@ -18,6 +18,7 @@ type GithubConnectorModalProps = {
   onOpenChange: (open: boolean) => void;
   onConnect: () => Promise<void>;
   onDisconnect: () => Promise<void>;
+  onConnected?: () => Promise<void>;
 };
 
 export function GithubConnectorModal({
@@ -26,12 +27,16 @@ export function GithubConnectorModal({
   onOpenChange,
   onConnect,
   onDisconnect,
+  onConnected,
 }: GithubConnectorModalProps) {
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [repos, setRepos] = useState<GithubRepo[]>([]);
   const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [tokenValue, setTokenValue] = useState("");
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [showTokenFallback, setShowTokenFallback] = useState(false);
 
   const selectedCount = useMemo(() => selectedRepos.length, [selectedRepos]);
 
@@ -66,7 +71,37 @@ export function GithubConnectorModal({
 
   useEffect(() => {
     if (!open) setDetailsOpen(false);
+    if (!open) setShowTokenFallback(false);
   }, [open]);
+
+  const connectWithToken = async () => {
+    const token = tokenValue.trim();
+    if (!token) return;
+    try {
+      setTokenLoading(true);
+      const response = await fetch("/api/connectors/github/token", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to save GitHub token");
+      }
+      setTokenValue("");
+      setShowTokenFallback(false);
+      if (onConnected) {
+        await onConnected();
+      }
+    } catch (error) {
+      console.error("[GithubConnectorModal] token connect failed:", error);
+      setShowTokenFallback(true);
+      throw error;
+    } finally {
+      setTokenLoading(false);
+    }
+  };
 
   const persistState = async (nextSelectedRepos: string[], nextEnabled: boolean) => {
     setSelectedRepos(nextSelectedRepos);
@@ -126,13 +161,13 @@ export function GithubConnectorModal({
                     setDetailsOpen(true);
                     return;
                   }
-                  void onConnect();
+                  void onConnect().catch(() => setShowTokenFallback(true));
                 }}
                 className={`inline-flex h-10 items-center justify-center rounded-full px-5 text-[13px] font-medium transition-colors ${
                   connected ? "border border-[#dcd6cc] bg-white text-[#3b3632] hover:bg-[#f5f2ed]" : "bg-[#111111] text-white hover:bg-[#1f1f1f]"
                 }`}
               >
-                {connected ? "Manage" : "Connect"}
+                {connected ? "Manage" : "Authorize GitHub"}
               </button>
               <button
                 type="button"
@@ -146,6 +181,16 @@ export function GithubConnectorModal({
               </button>
             </div>
 
+            {!connected ? (
+              <button
+                type="button"
+                onClick={() => setShowTokenFallback((value) => !value)}
+                className="mt-3 text-[12px] font-medium text-[#8a847b] transition-colors hover:text-[#3b3632]"
+              >
+                {showTokenFallback ? "Hide token option" : "Use a GitHub token instead"}
+              </button>
+            ) : null}
+
             {connected ? (
               <button
                 type="button"
@@ -154,6 +199,32 @@ export function GithubConnectorModal({
               >
                 Disconnect GitHub
               </button>
+            ) : null}
+
+            {showTokenFallback && !connected ? (
+              <div className="mt-5 rounded-[22px] border border-[#e6e1d8] bg-white p-4 text-left">
+                <div className="text-[13px] font-semibold text-[#2f2b27]">Connect with a GitHub token</div>
+                <p className="mt-1 text-[12px] leading-6 text-[#7a746c]">
+                  If OAuth is not configured yet, paste a personal access token and Forge will validate it before saving.
+                </p>
+                <div className="mt-3 flex flex-col gap-3 md:flex-row">
+                  <input
+                    value={tokenValue}
+                    onChange={(event) => setTokenValue(event.target.value)}
+                    placeholder="ghp_..."
+                    type="password"
+                    className="h-11 flex-1 rounded-full border border-[#e4dfd6] bg-[#fbfaf8] px-4 text-[14px] text-[#2f2b27] outline-none transition-colors placeholder:text-[#a09a91] focus:border-[#c9c2b8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void connectWithToken()}
+                    disabled={tokenLoading}
+                    className="inline-flex h-11 items-center justify-center rounded-full bg-[#f3f0ea] px-5 text-[13px] font-medium text-[#3b3632] transition-colors hover:bg-[#ebe7df] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {tokenLoading ? "Saving..." : "Connect token"}
+                  </button>
+                </div>
+              </div>
             ) : null}
 
             <div className="mt-4 flex items-center gap-3 text-[12px] text-[#8a847b]">
