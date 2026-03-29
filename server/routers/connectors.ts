@@ -29,6 +29,60 @@ function getConnectorManager(): ConnectorManager {
   return connectorManager;
 }
 
+function connectorAuthResponseHtml(payload: { connector: string; status: "connected" | "error"; error?: string }) {
+  const safeJson = JSON.stringify(payload).replace(/</g, "\\u003c");
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forge connector auth</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f6f5f2;
+        color: #1f1c18;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+      }
+      .card {
+        display: grid;
+        gap: 8px;
+        padding: 24px 28px;
+        border: 1px solid #e5e0d7;
+        border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 18px 50px rgba(42, 37, 30, 0.08);
+        text-align: center;
+      }
+      .title { font-size: 18px; font-weight: 600; letter-spacing: -0.03em; }
+      .sub { font-size: 13px; color: #7a746c; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="title">Returning to Forge...</div>
+      <div class="sub">You can close this window if it does not close automatically.</div>
+    </div>
+    <script>
+      (function () {
+        const payload = ${safeJson};
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: "forge:connector-auth", ...payload }, window.location.origin);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        setTimeout(() => window.close(), 250);
+      })();
+    </script>
+  </body>
+</html>`;
+}
+
 export function registerConnectorRoutes(app: Express) {
   /**
    * Initiate Google OAuth flow for Drive and Gmail
@@ -77,11 +131,23 @@ export function registerConnectorRoutes(app: Express) {
       // Handle user denial
       if (error) {
         console.warn("[Connectors] Google OAuth denied:", error);
-        return res.redirect(`/connectors?error=${error}`);
+        return res.send(
+          connectorAuthResponseHtml({
+            connector: service || "google",
+            status: "error",
+            error,
+          }),
+        );
       }
 
       if (!code || !state) {
-        return res.redirect("/connectors?error=missing_code_or_state");
+        return res.send(
+          connectorAuthResponseHtml({
+            connector: service || "google",
+            status: "error",
+            error: "missing_code_or_state",
+          }),
+        );
       }
 
       let stateData;
@@ -112,10 +178,21 @@ export function registerConnectorRoutes(app: Express) {
       );
 
       console.log(`[Connectors] Successfully connected ${service}`);
-      res.redirect(`/connectors?connector=${service}&status=connected`);
+      res.send(
+        connectorAuthResponseHtml({
+          connector: service,
+          status: "connected",
+        }),
+      );
     } catch (error) {
       console.error("[Connectors] Google callback failed:", error);
-      res.redirect("/connectors?error=callback_failed");
+      res.send(
+        connectorAuthResponseHtml({
+          connector: "google",
+          status: "error",
+          error: "callback_failed",
+        }),
+      );
     }
   });
 
@@ -159,11 +236,23 @@ export function registerConnectorRoutes(app: Express) {
       // Handle user denial
       if (error) {
         console.warn("[Connectors] GitHub OAuth denied:", error);
-        return res.redirect(`/connectors?error=${error}`);
+        return res.send(
+          connectorAuthResponseHtml({
+            connector: "github",
+            status: "error",
+            error,
+          }),
+        );
       }
 
       if (!code || !state) {
-        return res.redirect("/connectors?error=missing_code_or_state");
+        return res.send(
+          connectorAuthResponseHtml({
+            connector: "github",
+            status: "error",
+            error: "missing_code_or_state",
+          }),
+        );
       }
 
       let stateData;
@@ -184,10 +273,21 @@ export function registerConnectorRoutes(app: Express) {
       await manager.saveConnectorState(userId, "github", tokenState);
 
       console.log("[Connectors] Successfully connected GitHub");
-      res.redirect("/connectors?connector=github&status=connected");
+      res.send(
+        connectorAuthResponseHtml({
+          connector: "github",
+          status: "connected",
+        }),
+      );
     } catch (error) {
       console.error("[Connectors] GitHub callback failed:", error);
-      res.redirect("/connectors?error=callback_failed");
+      res.send(
+        connectorAuthResponseHtml({
+          connector: "github",
+          status: "error",
+          error: "callback_failed",
+        }),
+      );
     }
   });
 
