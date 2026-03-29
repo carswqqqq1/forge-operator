@@ -16,7 +16,7 @@ import {
   Database,
   Globe,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useLocation } from "wouter"
 import { toast } from "sonner"
 import { startConnectorAuth } from "@/lib/connector-auth"
@@ -285,6 +285,13 @@ export default function Connectors() {
   const [tab, setTab] = useState<Tab>("apps")
   const [githubModalOpen, setGithubModalOpen] = useState(false)
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] || "")
+    if (params.get("connector") === "github") {
+      setGithubModalOpen(true)
+    }
+  }, [location])
+
   const connectorsByType = useMemo(() => {
     const map = new Map<string, any>()
     ;(connectors || []).forEach((connector: any) => {
@@ -326,21 +333,16 @@ export default function Connectors() {
   }
 
   const connectGithubOAuth = async () => {
-    try {
-      const response = await fetch("/api/connectors/github/auth", { credentials: "include" })
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error || "Failed to initiate GitHub authentication")
-      }
-
-      const data = await response.json()
-      await startConnectorAuth(data.authUrl, "github")
-      await refetch()
-      toast.success("GitHub connected")
-    } catch (error) {
-      console.error("[Connectors] GitHub OAuth connection failed:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to connect GitHub")
+    const response = await fetch("/api/connectors/github/auth", { credentials: "include" })
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      throw new Error(payload?.error || "Failed to initiate GitHub authentication")
     }
+
+    const data = await response.json()
+    await startConnectorAuth(data.authUrl, "github")
+    await refetch()
+    toast.success("GitHub connected")
   }
 
   const disconnectGithub = async () => {
@@ -509,8 +511,8 @@ export default function Connectors() {
         open={githubModalOpen}
         connected={isConnected("github")}
         onOpenChange={setGithubModalOpen}
-        onConnect={() => void connectGithubOAuth()}
-        onDisconnect={() => void disconnectGithub()}
+        onConnect={connectGithubOAuth}
+        onDisconnect={disconnectGithub}
         onConnected={async () => {
           await refetch();
         }}

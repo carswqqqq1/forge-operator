@@ -1,6 +1,7 @@
 import { GithubBrandIcon } from "@/components/connectors-data";
 import { Check, ChevronDown, ExternalLink, Loader2, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 type GithubRepo = {
   id: number;
@@ -161,7 +162,11 @@ export function GithubConnectorModal({
                     setDetailsOpen(true);
                     return;
                   }
-                  void onConnect().catch(() => setShowTokenFallback(true));
+                  void onConnect().catch((error) => {
+                    console.error("[GithubConnectorModal] OAuth connect failed:", error);
+                    setShowTokenFallback(true);
+                    toast.error(error instanceof Error ? error.message : "GitHub OAuth is not configured yet. Use a token to connect now.");
+                  });
                 }}
                 className={`inline-flex h-10 items-center justify-center rounded-full px-5 text-[13px] font-medium transition-colors ${
                   connected ? "border border-[#dcd6cc] bg-white text-[#3b3632] hover:bg-[#f5f2ed]" : "bg-[#111111] text-white hover:bg-[#1f1f1f]"

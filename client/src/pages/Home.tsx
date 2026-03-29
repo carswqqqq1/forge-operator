@@ -217,6 +217,9 @@ export default function Home({ conversationId }: { conversationId?: string }) {
       await refetchConnectors();
     } catch (error) {
       console.error("[Forge] Connector auth error", error);
+      if (row.type === "github") {
+        setLocation("/connectors?connector=github");
+      }
     }
   }, [connectorsByType, refetchConnectors]);
 

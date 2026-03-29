@@ -305,8 +305,8 @@ export default function ConnectorsSettings() {
         open={githubModalOpen}
         connected={connectorsByType.has("github")}
         onOpenChange={setGithubModalOpen}
-        onConnect={() => void connectGithubOAuth()}
-        onDisconnect={() => void disconnectGithub()}
+        onConnect={connectGithubOAuth}
+        onDisconnect={disconnectGithub}
         onConnected={async () => {
           await refetch();
         }}
