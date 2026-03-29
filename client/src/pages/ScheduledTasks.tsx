@@ -1,10 +1,4 @@
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Clock, Plus, Trash2, Play, Pause } from "lucide-react";
@@ -21,72 +15,88 @@ export default function ScheduledTasks() {
   const [form, setForm] = useState({ name: "", description: "", cronExpression: "", prompt: "", model: "" });
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="h-full overflow-y-auto bg-[#f6f5f2]">
+      <div className="mx-auto max-w-[680px] px-6 py-8">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Scheduled Tasks</h1>
-            <p className="text-sm text-muted-foreground mt-1">Automate recurring agent tasks with cron scheduling</p>
-          </div>
+          <h1 className="font-serif text-[28px] font-semibold tracking-[-0.03em] text-[#1a1816]">Scheduled tasks</h1>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-1.5"><Plus className="h-3.5 w-3.5" />New Task</Button>
+              <button className="flex items-center gap-2 rounded-xl bg-[#1a1816] px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:opacity-90">
+                <Plus className="h-4 w-4" /> New Task
+              </button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border/50">
-              <DialogHeader><DialogTitle>Schedule Task</DialogTitle></DialogHeader>
-              <div className="space-y-3">
-                <div><Label className="text-xs">Name</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Daily Report" className="bg-background" /></div>
-                <div><Label className="text-xs">Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What this task does" className="bg-background" /></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-xs">Cron Expression</Label><Input value={form.cronExpression} onChange={e => setForm(p => ({ ...p, cronExpression: e.target.value }))} placeholder="0 9 * * *" className="bg-background font-mono" /></div>
-                  <div><Label className="text-xs">Model (optional)</Label><Input value={form.model} onChange={e => setForm(p => ({ ...p, model: e.target.value }))} placeholder="llama3" className="bg-background" /></div>
+            <DialogContent className="rounded-2xl border-[#e8e4dc] bg-white p-6">
+              <DialogHeader><DialogTitle className="font-serif text-[20px] font-semibold text-[#1a1816]">Schedule Task</DialogTitle></DialogHeader>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <Label className="text-[12px] text-[#7a746c]">Name</Label>
+                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Daily Report" className="mt-1 w-full rounded-xl border border-[#e8e4dc] bg-white px-4 py-2.5 text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c]" />
                 </div>
-                <div><Label className="text-xs">Prompt</Label><Textarea value={form.prompt} onChange={e => setForm(p => ({ ...p, prompt: e.target.value }))} placeholder="Generate a summary of..." rows={4} className="bg-background" /></div>
-                <Button onClick={() => { if (!form.name || !form.prompt) { toast.error("Name and prompt required"); return; } createTask.mutate(form); }} disabled={createTask.isPending} className="w-full">Schedule Task</Button>
+                <div>
+                  <Label className="text-[12px] text-[#7a746c]">Description</Label>
+                  <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="What this task does" className="mt-1 w-full rounded-xl border border-[#e8e4dc] bg-white px-4 py-2.5 text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c]" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-[12px] text-[#7a746c]">Cron Expression</Label>
+                    <input value={form.cronExpression} onChange={e => setForm(p => ({ ...p, cronExpression: e.target.value }))} placeholder="0 9 * * *" className="mt-1 w-full rounded-xl border border-[#e8e4dc] bg-white px-4 py-2.5 font-mono text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c]" />
+                  </div>
+                  <div>
+                    <Label className="text-[12px] text-[#7a746c]">Model (optional)</Label>
+                    <input value={form.model} onChange={e => setForm(p => ({ ...p, model: e.target.value }))} placeholder="llama3" className="mt-1 w-full rounded-xl border border-[#e8e4dc] bg-white px-4 py-2.5 text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c]" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[12px] text-[#7a746c]">Prompt</Label>
+                  <textarea value={form.prompt} onChange={e => setForm(p => ({ ...p, prompt: e.target.value }))} placeholder="Generate a summary of..." rows={4} className="mt-1 w-full resize-none rounded-xl border border-[#e8e4dc] bg-white px-4 py-2.5 text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c]" />
+                </div>
+                <button onClick={() => { if (!form.name || !form.prompt) { toast.error("Name and prompt required"); return; } createTask.mutate(form); }} disabled={createTask.isPending} className="w-full rounded-xl bg-[#1a1816] py-2.5 text-[14px] font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[#ece9e3] disabled:text-[#b8b3ab]">
+                  Schedule Task
+                </button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="grid gap-3">
+        <div className="mt-6 space-y-3">
           {tasks?.length ? tasks.map(task => (
-            <Card key={task.id} className="bg-card border-border/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Clock className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium">{task.name}</h3>
-                        {task.cronExpression && <Badge variant="outline" className="text-[10px] h-5 font-mono">{task.cronExpression}</Badge>}
-                        <Badge variant={task.isActive ? "default" : "secondary"} className="text-[10px] h-5">{task.isActive ? "Active" : "Paused"}</Badge>
-                      </div>
-                      {task.description && <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>}
-                      <p className="text-[10px] text-muted-foreground mt-1 truncate">{task.prompt.slice(0, 100)}</p>
-                    </div>
+            <div key={task.id} className="rounded-2xl border border-[#e8e4dc] bg-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3f0ea]">
+                    <Clock className="h-5 w-5 text-[#7a746c]" />
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => updateTask.mutate({ id: task.id, isActive: !task.isActive })}>
-                      {task.isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteTask.mutate({ id: task.id })}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[14px] font-semibold text-[#1a1816]">{task.name}</h3>
+                      {task.cronExpression && <span className="rounded-md bg-[#efede8] px-2 py-0.5 font-mono text-[11px] text-[#7a746c]">{task.cronExpression}</span>}
+                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${task.isActive ? "bg-[#dcfce7] text-[#16a34a]" : "bg-[#efede8] text-[#7a746c]"}`}>
+                        {task.isActive ? "Active" : "Paused"}
+                      </span>
+                    </div>
+                    {task.description && <p className="mt-0.5 text-[12px] text-[#7a746c]">{task.description}</p>}
+                    <p className="mt-1 truncate text-[11px] text-[#9e9890]">{task.prompt.slice(0, 100)}</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => updateTask.mutate({ id: task.id, isActive: !task.isActive })} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7a746c] transition-colors hover:bg-[#efede8]">
+                    {task.isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </button>
+                  <button onClick={() => deleteTask.mutate({ id: task.id })} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#7a746c] transition-colors hover:bg-red-50 hover:text-red-500">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
           )) : (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <Clock className="h-8 w-8 mb-2 opacity-30" />
-              <p className="text-sm">No scheduled tasks</p>
-              <p className="text-xs mt-1">Automate recurring tasks with cron expressions</p>
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#e8e4dc] py-16">
+              <Clock className="h-8 w-8 text-[#d9d4cc]" />
+              <p className="mt-2 text-[14px] text-[#7a746c]">No scheduled tasks</p>
+              <p className="mt-1 text-[12px] text-[#9e9890]">Automate recurring tasks with cron expressions</p>
             </div>
           )}
         </div>
       </div>
-    </ScrollArea>
+    </div>
   );
 }

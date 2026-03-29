@@ -40,45 +40,46 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-serif: "Georgia", "Garamond", serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Recoleta", "Georgia", "Times New Roman", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.15 0.01 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.01 260);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 260);
-  --primary: oklch(0.8 0.3 140);
-  --primary-foreground: oklch(0.15 0.01 260);
-  --secondary: oklch(0.95 0.01 260);
-  --secondary-foreground: oklch(0.3 0.01 260);
-  --muted: oklch(0.92 0.01 260);
-  --muted-foreground: oklch(0.5 0.01 260);
-  --accent: oklch(0.6 0.25 25);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.6 0.25 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.92 0.01 260);
-  --input: oklch(0.95 0.01 260);
-  --ring: oklch(0.8 0.3 140);
-  --chart-1: oklch(0.8 0.3 140);
-  --chart-2: oklch(0.6 0.25 25);
-  --chart-3: oklch(0.7 0.2 250);
-  --chart-4: oklch(0.75 0.25 180);
-  --chart-5: oklch(0.65 0.2 30);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.15 0.01 260);
-  --sidebar-primary: oklch(0.8 0.3 140);
-  --sidebar-primary-foreground: oklch(0.15 0.01 260);
-  --sidebar-accent: oklch(0.6 0.25 25);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.92 0.01 260);
-  --sidebar-ring: oklch(0.8 0.3 140);
+  --radius: 0.625rem;
+  /* Manus warm neutral palette */
+  --background: #f6f5f2;
+  --foreground: #1a1816;
+  --card: #ffffff;
+  --card-foreground: #1a1816;
+  --popover: #ffffff;
+  --popover-foreground: #1a1816;
+  --primary: #1a1816;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ede8;
+  --secondary-foreground: #36322d;
+  --muted: #ece9e3;
+  --muted-foreground: #7a746c;
+  --accent: #efede8;
+  --accent-foreground: #36322d;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #ddd8cf;
+  --input: #ece9e3;
+  --ring: #1a1816;
+  --chart-1: #2563eb;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1816;
+  --sidebar-primary: #1a1816;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efede8;
+  --sidebar-accent-foreground: #36322d;
+  --sidebar-border: #e8e4dc;
+  --sidebar-ring: #1a1816;
 }
 
 * {
@@ -87,60 +88,53 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--foreground);
 }
 
 h1 {
-  font-size: 2.25rem;
-  line-height: 2.5rem;
+  font-size: 2.75rem;
+  line-height: 1.15;
 }
 
 h2 {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
+  font-size: 2rem;
+  line-height: 1.2;
 }
 
 h3 {
   font-size: 1.5rem;
-  line-height: 2rem;
+  line-height: 1.3;
 }
 
 h4 {
   font-size: 1.25rem;
-  line-height: 1.75rem;
+  line-height: 1.4;
 }
 
 h5 {
   font-size: 1.125rem;
-  line-height: 1.75rem;
+  line-height: 1.5;
 }
 
 h6 {
   font-size: 1rem;
-  line-height: 1.5rem;
-}
-
-.dashed-border {
-  border-width: 2px;
-  border-style: dashed;
-  border-color: var(--primary);
-}
-
-.dashed-border-red {
-  border-width: 2px;
-  border-style: dashed;
-  border-color: var(--accent);
+  line-height: 1.5;
 }
 
 .container {
@@ -166,34 +160,35 @@ h6 {
 }
 
 a {
-  color: var(--primary);
-  transition-property: color;
+  color: inherit;
+  text-decoration: none;
+  transition-property: color, opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
 a:hover {
-  color: var(--accent);
+  opacity: 0.8;
 }
 
 button {
-  transition-property: color, background-color, border-color;
+  transition-property: color, background-color, border-color, box-shadow, opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
 
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--primary);
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
 }
 
 ::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background-color: var(--background);
+  background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -202,5 +197,60 @@ button {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--muted);
+  background-color: var(--muted-foreground);
+}
+
+/* Manus-style input card shadow */
+.manus-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e8e4dc;
+  box-shadow: 0 4px 24px rgba(42, 37, 30, 0.06), 0 1px 3px rgba(42, 37, 30, 0.04);
+}
+
+/* Manus-style action chips */
+.manus-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid #e8e4dc;
+  background: #ffffff;
+  font-size: 14px;
+  color: #36322d;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.manus-chip:hover {
+  background: #f6f5f2;
+  border-color: #ddd8cf;
+}
+
+/* Manus-style promotional banner */
+.manus-promo-banner {
+  background: linear-gradient(135deg, #e8f4f8 0%, #f0f7e8 100%);
+  border: 1px solid #d4e8d0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #36322d;
+}
+
+/* Task progress card */
+.task-progress-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e8e4dc;
+  box-shadow: 0 8px 32px rgba(42, 37, 30, 0.08);
+  overflow: hidden;
+}
+
+/* Manus computer sandbox card */
+.sandbox-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e8e4dc;
+  box-shadow: 0 8px 32px rgba(42, 37, 30, 0.08);
 }

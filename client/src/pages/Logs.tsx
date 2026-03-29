@@ -1,8 +1,6 @@
+
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, ScrollText, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
@@ -19,54 +17,56 @@ export default function Logs() {
   };
 
   const statusIcon = (status: string) => {
-    if (status === "success") return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
-    if (status === "error") return <XCircle className="h-3.5 w-3.5 text-red-500" />;
-    return <Clock className="h-3.5 w-3.5 text-yellow-500 animate-spin" />;
+    if (status === "success") return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    if (status === "error") return <XCircle className="h-4 w-4 text-red-500" />;
+    return <Clock className="h-4 w-4 text-yellow-500 animate-spin" />;
   };
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Execution Logs</h1>
-          <p className="text-sm text-muted-foreground mt-1">Detailed history of all tool executions</p>
-        </div>
+    <div className="h-full bg-[#f6f5f2]">
+      <ScrollArea className="h-full">
+        <div className="p-6 space-y-6 max-w-7xl mx-auto">
+          <div>
+            <h1 className="font-serif text-[28px] font-semibold tracking-[-0.03em] text-[#1a1816]">Execution Logs</h1>
+            <p className="text-[14px] text-[#7a746c] mt-1">Detailed history of all tool executions performed by the agent.</p>
+          </div>
 
-        <Card className="bg-card border-border/50">
-          <CardContent className="p-0">
+          <div className="bg-white border border-[#e8e4dc] rounded-2xl">
             {executions?.length ? (
-              <div className="divide-y divide-border/30">
+              <div className="divide-y divide-[#e8e4dc]">
                 {executions.map((exec) => (
                   <div key={exec.id}>
                     <button
                       onClick={() => toggle(exec.id)}
-                      className="w-full flex items-center gap-3 p-3 hover:bg-accent/30 transition-colors text-left"
+                      className="w-full flex items-center gap-4 p-4 hover:bg-[#f6f5f2]/50 transition-colors text-left"
                     >
-                      {expanded.has(exec.id) ? (
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      )}
-                      {statusIcon(exec.status)}
-                      <span className="text-xs font-mono w-28 shrink-0 text-foreground">{exec.toolName}</span>
-                      <span className="text-xs text-muted-foreground truncate flex-1">
+                      <div className="p-1.5 bg-[#f3f0ea] rounded-xl">
+                        {expanded.has(exec.id) ? (
+                          <ChevronDown className="h-4 w-4 text-[#7a746c] shrink-0" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-[#7a746c] shrink-0" />
+                        )}
+                      </div>
+                      <div className="p-1.5 bg-[#f3f0ea] rounded-xl">{statusIcon(exec.status)}</div>
+                      <span className="text-[13px] font-mono w-32 shrink-0 text-[#36322d]">{exec.toolName}</span>
+                      <span className="text-[13px] text-[#7a746c] truncate flex-1">
                         {(() => {
-                          try { return JSON.stringify(JSON.parse(exec.toolInput)).slice(0, 100); }
-                          catch { return exec.toolInput.slice(0, 100); }
+                          try { return JSON.stringify(JSON.parse(exec.toolInput)).slice(0, 150); }
+                          catch { return exec.toolInput.slice(0, 150); }
                         })()}
                       </span>
-                      <Badge variant="outline" className="text-[10px] h-5 shrink-0">
+                      <div className="rounded-md bg-[#efede8] px-2 py-0.5 text-[11px] text-[#7a746c] h-5 shrink-0">
                         {exec.durationMs ? `${exec.durationMs}ms` : "..."}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground shrink-0 w-32 text-right">
+                      </div>
+                      <span className="text-[12px] text-[#7a746c] shrink-0 w-36 text-right">
                         {new Date(exec.createdAt).toLocaleString()}
                       </span>
                     </button>
                     {expanded.has(exec.id) && (
-                      <div className="px-4 pb-4 space-y-3">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Input</p>
-                          <pre className="text-xs font-mono bg-[oklch(0.12_0.005_260)] rounded-lg p-3 overflow-x-auto text-muted-foreground whitespace-pre-wrap">
+                      <div className="px-6 pb-4 space-y-4 border-t border-[#e8e4dc] bg-[#fbfaf8]">
+                        <div className="pt-4">
+                          <p className="text-[11px] uppercase font-medium tracking-wider text-[#7a746c] mb-2">Input</p>
+                          <pre className="text-[12px] font-mono bg-[#f3f0ea] rounded-xl p-3 overflow-x-auto text-[#36322d] whitespace-pre-wrap">
                             {(() => {
                               try { return JSON.stringify(JSON.parse(exec.toolInput), null, 2); }
                               catch { return exec.toolInput; }
@@ -75,8 +75,8 @@ export default function Logs() {
                         </div>
                         {exec.toolOutput && (
                           <div>
-                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Output</p>
-                            <pre className="text-xs font-mono bg-[oklch(0.12_0.005_260)] rounded-lg p-3 overflow-x-auto text-muted-foreground whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                            <p className="text-[11px] uppercase font-medium tracking-wider text-[#7a746c] mb-2">Output</p>
+                            <pre className="text-[12px] font-mono bg-[#f3f0ea] rounded-xl p-3 text-[#36322d] whitespace-pre-wrap max-h-[300px] overflow-y-auto">
                               {exec.toolOutput}
                             </pre>
                           </div>
@@ -87,14 +87,18 @@ export default function Logs() {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <ScrollText className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-sm">No execution logs yet</p>
+              <div className="flex flex-col items-center justify-center py-20 text-[#7a746c]">
+                <div className="p-3 bg-[#f3f0ea] rounded-2xl mb-4">
+                  <ScrollText className="h-8 w-8 text-[#7a746c]" />
+                </div>
+                <p className="text-[14px] font-medium text-[#36322d]">No execution logs</p>
+                <p className="text-[13px] text-[#7a746c]">When the agent runs tools, the logs will appear here.</p>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </ScrollArea>
+          </div>
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
+

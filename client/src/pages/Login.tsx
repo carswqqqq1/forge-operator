@@ -1,257 +1,127 @@
-import { useState, type FormEvent } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-function signInWithGoogle() {
-  window.location.href = "/api/auth/google";
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
 }
 
-function signInWithApple() {
-  window.location.href = "/api/auth/apple";
+function AppleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+    </svg>
+  );
 }
 
-async function postAuth(path: string, payload: Record<string, string>) {
-  const res = await fetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+function FacebookIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>
+  );
+}
 
-  let data: any = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.error || "Authentication failed");
-  }
-
-  return data;
+function MicrosoftIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <rect x="1" y="1" width="10" height="10" fill="#F25022"/>
+      <rect x="13" y="1" width="10" height="10" fill="#7FBA00"/>
+      <rect x="1" y="13" width="10" height="10" fill="#00A4EF"/>
+      <rect x="13" y="13" width="10" height="10" fill="#FFB900"/>
+    </svg>
+  );
 }
 
 export default function Login() {
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleEmailSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-
+  const signInWithGoogle = async () => {
     setLoading(true);
-    try {
-      if (mode === "signin") {
-        await postAuth("/api/auth/email/login", { email, password, cfToken: "" });
-        toast.success("Signed in successfully!");
-        window.location.href = "/";
-        return;
-      }
-
-      await postAuth("/api/auth/email/register", { email, password, cfToken: "" });
-      toast.success("Account created! Please sign in.");
-      setPassword("");
-      setMode("signin");
-    } catch (error: any) {
-      toast.error(error?.message || (mode === "signin" ? "Sign in failed" : "Registration failed"));
-    } finally {
-      setLoading(false);
-    }
+    try { window.location.href = "/api/auth/google"; } catch { setLoading(false); }
   };
 
-  const handleForgotPassword = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      toast.error("Please enter your email");
-      return;
-    }
-    toast.success("If an account exists, a reset link has been sent.");
-    setMode("signin");
+  const handleEmailContinue = async () => {
+    if (!email.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/email/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        credentials: "include", body: JSON.stringify({ email, password: "", cfToken: "" }),
+      });
+      if (res.ok) { toast.success("Signed in!"); window.location.href = "/"; return; }
+    } catch {}
+    setLocation("/");
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f0] flex items-center justify-center p-4">
-      <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-sm border border-neutral-200 px-8 py-10 flex flex-col items-center gap-6">
-        <div className="flex flex-col items-center gap-3">
-          <img
-            src="/icon-only.png"
-            alt="Forge"
-            className="w-14 h-14 object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <h1 className="text-[22px] font-semibold text-neutral-900 tracking-tight">
-            {mode === "signin" && "Sign in to Forge"}
-            {mode === "signup" && "Create your Forge account"}
-            {mode === "forgot" && "Reset your password"}
-          </h1>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#f6f5f2]">
+      <div className="absolute left-6 top-6 flex items-center gap-2">
+        <img src="/icon-only.png" alt="Forge" className="h-6 w-6" />
+        <span className="font-serif text-lg font-semibold tracking-[-0.03em] text-[#1a1816]">forge</span>
+      </div>
+
+      <div className="w-full max-w-[400px] px-6">
+        <div className="mb-8 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a1816]">
+            <img src="/icon-only.png" alt="Forge" className="h-8 w-8 brightness-0 invert" />
+          </div>
         </div>
 
-        {mode !== "forgot" && (
-          <>
-            <div className="w-full flex flex-col gap-2.5">
-              <Button
-                variant="outline"
-                className="w-full h-11 flex items-center gap-2.5 border border-neutral-300 rounded-lg text-[14px] font-medium text-neutral-800 hover:bg-neutral-50 transition-colors"
-                onClick={signInWithGoogle}
-                type="button"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
-                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-                  <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
-                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                </svg>
-                Sign in with Google
-              </Button>
+        <h1 className="text-center text-[22px] font-semibold tracking-[-0.02em] text-[#1a1816]">Sign in or sign up</h1>
+        <p className="mt-1.5 text-center text-[14px] text-[#7a746c]">Start creating with Forge</p>
 
-              <Button
-                variant="outline"
-                className="w-full h-11 flex items-center gap-2.5 border border-neutral-300 rounded-lg text-[14px] font-medium text-neutral-800 hover:bg-neutral-50 transition-colors"
-                onClick={signInWithApple}
-                type="button"
-              >
-                <svg width="16" height="18" viewBox="0 0 16 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M13.173 9.557c-.02-2.17 1.773-3.22 1.854-3.27-1.012-1.48-2.584-1.682-3.143-1.703-1.335-.136-2.61.79-3.287.79-.676 0-1.716-.773-2.826-.752-1.447.022-2.788.843-3.531 2.135C.717 9.31 1.81 13.5 3.37 15.78c.774 1.116 1.692 2.368 2.9 2.322 1.165-.047 1.604-.749 3.013-.749 1.41 0 1.806.749 3.037.726 1.254-.022 2.044-1.133 2.81-2.253.888-1.29 1.253-2.54 1.273-2.605-.028-.013-2.44-.935-2.463-3.664z" fill="#000"/>
-                  <path d="M10.98 2.9c.637-.78 1.07-1.857.952-2.934-.92.038-2.044.617-2.706 1.39-.59.685-1.11 1.79-.972 2.843 1.027.08 2.08-.523 2.726-1.3z" fill="#000"/>
-                </svg>
-                Sign in with Apple
-              </Button>
-            </div>
+        <div className="mt-8 space-y-3">
+          <button onClick={() => {}} className="flex w-full items-center gap-3 rounded-xl border border-[#e8e4dc] bg-white px-4 py-3 text-[14px] font-medium text-[#1a1816] transition-colors hover:bg-[#faf9f6]">
+            <FacebookIcon /><span>Continue with Facebook</span>
+          </button>
+          <button onClick={signInWithGoogle} className="flex w-full items-center gap-3 rounded-xl border border-[#e8e4dc] bg-white px-4 py-3 text-[14px] font-medium text-[#1a1816] transition-colors hover:bg-[#faf9f6]">
+            <GoogleIcon /><span>Continue with Google</span>
+          </button>
+          <button onClick={() => {}} className="flex w-full items-center gap-3 rounded-xl border border-[#e8e4dc] bg-white px-4 py-3 text-[14px] font-medium text-[#1a1816] transition-colors hover:bg-[#faf9f6]">
+            <MicrosoftIcon /><span>Continue with Microsoft</span>
+          </button>
+          <button onClick={() => { window.location.href = "/api/auth/apple"; }} className="flex w-full items-center gap-3 rounded-xl border border-[#e8e4dc] bg-white px-4 py-3 text-[14px] font-medium text-[#1a1816] transition-colors hover:bg-[#faf9f6]">
+            <AppleIcon /><span>Continue with Apple</span>
+          </button>
+        </div>
 
-            <div className="w-full flex items-center gap-3">
-              <Separator className="flex-1 bg-neutral-200" />
-              <span className="text-[12px] text-neutral-400 font-medium">Or</span>
-              <Separator className="flex-1 bg-neutral-200" />
-            </div>
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#e8e4dc]" />
+          <span className="text-xs text-[#7a746c]">Or</span>
+          <div className="h-px flex-1 bg-[#e8e4dc]" />
+        </div>
 
-            <form onSubmit={handleEmailSubmit} className="w-full flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="email" className="text-[13px] font-medium text-neutral-700">
-                  Email <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="mail@domain.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
-                  required
-                  autoComplete="email"
-                />
-              </div>
+        <div className="space-y-3">
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email address" className="w-full rounded-xl border border-[#e8e4dc] bg-white px-4 py-3 text-[14px] text-[#1a1816] outline-none placeholder:text-[#9e9890] focus:border-[#7a746c] transition-colors" />
+          <div className="flex items-center gap-2 rounded-lg border border-[#e8e4dc] bg-[#faf9f6] px-3 py-2.5">
+            <div className="h-5 w-5 rounded border border-[#ddd8cf] bg-white" />
+            <span className="text-xs text-[#7a746c]">Verify you are human</span>
+          </div>
+          <button onClick={handleEmailContinue} disabled={!email.trim() || loading} className={`flex w-full items-center justify-center rounded-xl px-4 py-3 text-[14px] font-medium transition-colors ${email.trim() && !loading ? "bg-[#1a1816] text-white hover:opacity-90" : "bg-[#ece9e3] text-[#b8b3ab] cursor-not-allowed"}`}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue"}
+          </button>
+        </div>
+      </div>
 
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-[13px] font-medium text-neutral-700">
-                    Password <span className="text-red-500">*</span>
-                  </Label>
-                  {mode === "signin" && (
-                    <button
-                      type="button"
-                      onClick={() => setMode("forgot")}
-                      className="text-[12px] text-neutral-500 hover:text-neutral-700 transition-colors"
-                    >
-                      Forgot password?
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400 pr-10"
-                    required
-                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]"
-              >
-                {loading ? "Loading..." : mode === "signin" ? "Sign in" : "Create account"}
-              </Button>
-            </form>
-
-            <div className="text-center text-[13px] text-neutral-600">
-              {mode === "signin" ? (
-                <>
-                  Don't have an account?{" "}
-                  <button onClick={() => setMode("signup")} className="text-neutral-900 font-medium hover:underline">
-                    Sign up
-                  </button>
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <button onClick={() => setMode("signin")} className="text-neutral-900 font-medium hover:underline">
-                    Sign in
-                  </button>
-                </>
-              )}
-            </div>
-          </>
-        )}
-
-        {mode === "forgot" && (
-          <form onSubmit={handleForgotPassword} className="w-full flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="forgot-email" className="text-[13px] font-medium text-neutral-700">
-                Email <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="forgot-email"
-                type="email"
-                placeholder="mail@domain.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-10 text-[14px] border-neutral-300 rounded-lg placeholder:text-neutral-400 focus-visible:ring-1 focus-visible:ring-neutral-400"
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full h-10 bg-neutral-800 text-white hover:bg-neutral-900 transition-colors rounded-lg font-medium text-[14px]">
-              Send reset link
-            </Button>
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className="text-center text-[13px] text-neutral-600 hover:text-neutral-900 transition-colors"
-            >
-              Back to sign in
-            </button>
-          </form>
-        )}
-
-        <div className="w-full text-center text-[11px] text-neutral-400 flex gap-2 justify-center">
-          <a href="/terms" className="hover:text-neutral-600 transition-colors">Terms of Service</a>
-          <span>•</span>
-          <a href="/privacy" className="hover:text-neutral-600 transition-colors">Privacy Policy</a>
+      <div className="absolute bottom-6 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-1.5 text-[11px] text-[#7a746c]">
+          <span>from</span><span className="font-semibold">Forge</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-[#7a746c]">
+          <a href="#" className="hover:text-[#36322d] transition-colors">Terms of service</a>
+          <a href="#" className="hover:text-[#36322d] transition-colors">Privacy policy</a>
         </div>
       </div>
     </div>

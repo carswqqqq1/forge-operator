@@ -1,8 +1,5 @@
+
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Plus, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useState } from "react";
@@ -17,57 +14,59 @@ export default function Research() {
   const [query, setQuery] = useState("");
 
   const statusIcon = (status: string) => {
-    if (status === "completed") return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
-    if (status === "failed") return <XCircle className="h-3.5 w-3.5 text-red-500" />;
-    return <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />;
+    const containerClasses = "w-8 h-8 rounded-xl bg-[#f3f0ea] flex items-center justify-center";
+    if (status === "completed") return <div className={containerClasses}><CheckCircle2 className="h-4 w-4 text-emerald-600" /></div>;
+    if (status === "failed") return <div className={containerClasses}><XCircle className="h-4 w-4 text-red-600" /></div>;
+    return <div className={containerClasses}><Loader2 className="h-4 w-4 text-[#36322d] animate-spin" /></div>;
   };
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <ScrollArea className="h-full bg-[#f6f5f2]">
+      <div className="p-6 lg:p-8 space-y-8 max-w-5xl mx-auto">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Wide Research</h1>
-          <p className="text-sm text-muted-foreground mt-1">Dispatch parallel agents to collect data from multiple sources</p>
+          <h1 className="font-serif text-[28px] font-semibold tracking-[-0.03em] text-[#1a1816]">Wide Research</h1>
+          <p className="text-[14px] text-[#7a746c] mt-1">Dispatch parallel agents to collect data from multiple sources.</p>
         </div>
 
         <form onSubmit={(e) => { e.preventDefault(); if (!query.trim()) return; createSession.mutate({ query: query.trim() }); }} className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input value={query} onChange={e => setQuery(e.target.value)} placeholder="Enter research topic..." className="pl-9 bg-card border-border/50" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#7a746c]" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Enter a research topic to dispatch agents..."
+              className="w-full h-10 rounded-xl pl-10 pr-4 text-[13px] bg-white border border-[#e8e4dc] placeholder:text-[#7a746c] focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#f6f5f2] focus:ring-[#1a1816] focus:outline-none"
+            />
           </div>
-          <Button type="submit" disabled={createSession.isPending || !query.trim()} className="gap-1.5">
-            {createSession.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          <button type="submit" disabled={createSession.isPending || !query.trim()} className="h-10 px-4 flex items-center gap-2 bg-[#1a1816] text-white rounded-xl text-[13px] font-medium disabled:opacity-50 transition-opacity">
+            {createSession.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Research
-          </Button>
+          </button>
         </form>
 
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {sessions?.length ? sessions.map(session => (
-            <Card key={session.id} className="bg-card border-border/50">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 min-w-0">
-                    {statusIcon(session.status)}
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-medium">{session.query}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-[10px] h-5">{session.status}</Badge>
-                        {session.sourcesCount > 0 && <span className="text-[10px] text-muted-foreground">{session.sourcesCount} sources</span>}
-                        <span className="text-[10px] text-muted-foreground">{new Date(session.createdAt).toLocaleString()}</span>
-                      </div>
-                      {session.findings && (
-                        <pre className="text-[11px] font-mono text-muted-foreground mt-2 bg-accent/30 rounded p-2 max-h-32 overflow-hidden whitespace-pre-wrap">{session.findings.slice(0, 500)}</pre>
-                      )}
-                    </div>
+            <div key={session.id} className="bg-white border border-[#e8e4dc] rounded-2xl p-4">
+              <div className="flex items-start gap-4">
+                {statusIcon(session.status)}
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-medium text-[#1a1816] text-[14px]">{session.query}</h3>
+                  <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                    <div className="rounded-md bg-[#efede8] px-2 py-0.5 text-[11px] font-medium text-[#7a746c] capitalize">{session.status}</div>
+                    {session.sourcesCount > 0 && <span className="text-[12px] text-[#7a746c]">{session.sourcesCount} sources</span>}
+                    <span className="text-[12px] text-[#7a746c]">{new Date(session.createdAt).toLocaleString()}</span>
                   </div>
+                  {session.findings && (
+                    <pre className="text-xs font-mono text-[#7a746c] mt-3 bg-[#f6f5f2] rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap scrollbar-thin">{session.findings}</pre>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )) : (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <Search className="h-8 w-8 mb-2 opacity-30" />
-              <p className="text-sm">No research sessions</p>
-              <p className="text-xs mt-1">Start a research session to collect data from multiple sources</p>
+            <div className="flex flex-col items-center justify-center text-center py-20">
+              <Search className="h-10 w-10 mb-3 text-[#7a746c]/40" />
+              <p className="text-[14px] text-[#36322d] font-medium">No Research Sessions</p>
+              <p className="text-[13px] text-[#7a746c] mt-1">Start a new research session to begin collecting information.</p>
             </div>
           )}
         </div>
@@ -75,3 +74,4 @@ export default function Research() {
     </ScrollArea>
   );
 }
+
