@@ -17,6 +17,8 @@ import { ConnectorManager } from "../connectors/manager";
 import * as nvidia from "../nvidia";
 import { AVAILABLE_TOOLS, executeTool } from "../tools";
 import * as db from "../db";
+import { buildForgeSystemMessages } from "./promptContext";
+import { getComputerSnapshot } from "../computer";
 
 const TIER_CONFIG = {
   lite: {
@@ -196,11 +198,13 @@ async function startServer() {
 
     const user = (req as any).user;
     const { messages, model, conversationId, systemPrompt, enabledConnectors } = req.body;
-    
+
+    let conversation: any = null;
+
     // Verify conversation ownership
     if (conversationId) {
-      const conv = await db.getConversation(conversationId);
-      if (!conv || conv.userId !== user.id) {
+      conversation = await db.getConversation(conversationId);
+      if (!conversation || conversation.userId !== user.id) {
         res.write(`data: ${JSON.stringify({ type: "error", content: "Unauthorized access to conversation" })}\n\n`);
         res.end();
         return;
@@ -209,11 +213,13 @@ async function startServer() {
 
     const nvidiaMessages: nvidia.NVIDIAMessage[] = [];
 
-    if (systemPrompt) {
-      nvidiaMessages.push({ role: "system", content: systemPrompt });
-    }
+    const forgeSystemMessages = await buildForgeSystemMessages(user.id, {
+      conversationSystemPrompt: systemPrompt || conversation?.systemPrompt || null,
+      computerSnapshot: await getComputerSnapshot().catch(() => null),
+    });
+    nvidiaMessages.push(...forgeSystemMessages);
 
-    const githubContext = await buildGithubContext(user.id, enabledConnectors || conv?.enabledConnectors);
+    const githubContext = await buildGithubContext(user.id, enabledConnectors || conversation?.enabledConnectors);
     if (githubContext) {
       nvidiaMessages.push({ role: "system", content: githubContext });
     }
@@ -266,7 +272,7 @@ async function startServer() {
 
       for await (const chunk of nvidia.nvidiaStreamChat(nvidiaKey!, {
         model: nvidiaModel,
-        messages: nvidiaMessages.filter((message) => message.role !== "tool").map((message) => ({ role: message.role as "system" | "user" | "assistant", content: message.content })),
+        messages: nvidiaMessages.map((message) => ({ role: message.role as "system" | "user" | "assistant", content: message.content })),
         temperature: 0.2,
         top_p: 0.7,
         max_tokens: 4096,

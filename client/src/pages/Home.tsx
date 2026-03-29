@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { startConnectorAuth } from "@/lib/connector-auth";
 import { GithubBrandIcon, GmailBrandIcon, GoogleDriveBrandIcon } from "@/components/connectors-data";
+import { ForgeComputerPanel } from "@/components/forge-computer-panel";
 import {
   Send,
   Sparkles,
@@ -153,6 +154,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const { data: nvidiaStatus } = trpc.nvidia.status.useQuery();
   const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
   const { data: connectors, refetch: refetchConnectors } = trpc.connectors.list.useQuery(undefined, { refetchInterval: 5000 });
+  const { data: computerSnapshot, refetch: refetchComputer } = trpc.computer.snapshot.useQuery(undefined, { refetchInterval: 5000 });
   const createConversation = trpc.conversations.create.useMutation();
   const updateConversation = trpc.conversations.update.useMutation({
     onSuccess: () => {
@@ -160,6 +162,8 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     },
   });
   const addMessage = trpc.messages.create.useMutation({ onSuccess: () => refetchMessages() });
+  const launchComputer = trpc.computer.launch.useMutation({ onSuccess: () => void refetchComputer() });
+  const closeComputer = trpc.computer.close.useMutation({ onSuccess: () => void refetchComputer() });
 
   const isNvidiaReady = !!nvidiaStatus?.connected;
   const canSend = isNvidiaReady;
@@ -207,7 +211,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
     const enabledInChat = activeConnectorTypes.includes(row.type);
     try {
       if (enabledInChat) {
-        const next = activeConnectorTypes.filter((type) => type !== row.type);
+        const next = activeConnectorTypes.filter((type: string) => type !== row.type);
         if (convId) {
           await updateConversation.mutateAsync({ id: convId, enabledConnectors: next });
         } else {
@@ -564,6 +568,17 @@ export default function Home({ conversationId }: { conversationId?: string }) {
               return <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>{msg.role === "assistant" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><img src="/logo-light.png" alt="Forge Logo" className="h-4 w-4 object-contain" /></div>}<div className={cn("max-w-[80%] rounded-2xl px-4 py-2.5", msg.role === "user" ? "bg-[#33d233] text-[#121212]" : "border border-[#e3ddd4] bg-white text-[#2f2b27]")}>{msg.role === "assistant" ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{msg.content}</Streamdown></div> : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>}</div>{msg.role === "user" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary"><User className="h-4 w-4 text-secondary-foreground" /></div>}</div>;
             })}
             {streaming.active && <><div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><Sparkles className="h-4 w-4 animate-pulse text-primary" /></div><div className="max-w-[80%] rounded-2xl border border-[#e3ddd4] bg-white px-4 py-2.5 text-[#2f2b27]">{streaming.content ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{streaming.content}</Streamdown></div> : <div className="flex gap-1.5 py-1"><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /></div>}</div></div></>}
+
+            <div className="pt-2">
+              <ForgeComputerPanel
+                snapshot={computerSnapshot ?? null}
+                onLaunch={() => launchComputer.mutate()}
+                onRefresh={() => void refetchComputer()}
+                onClose={() => closeComputer.mutate()}
+                launching={launchComputer.isPending}
+                closing={closeComputer.isPending}
+              />
+            </div>
           </div>
         </ScrollArea>
       </div>

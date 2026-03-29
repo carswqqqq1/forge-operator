@@ -8,6 +8,7 @@ import * as db from "./db";
 import * as claude from "./claude";
 import * as nvidia from "./nvidia";
 import { executeTool, AVAILABLE_TOOLS } from "./tools";
+import { closeComputer, getComputerSnapshot, launchComputer, performComputerAction } from "./computer";
 
 export const appRouter = router({
   system: systemRouter,
@@ -91,7 +92,7 @@ export const appRouter = router({
           model: input.model || "meta/llama-3.1-8b-instruct",
           systemPrompt: input.systemPrompt || null,
           enabledConnectors: input.enabledConnectors || [],
-        });
+        } as any);
       }),
     update: protectedProcedure
       .input(z.object({ id: z.number(), title: z.string().optional(), model: z.string().optional(), systemPrompt: z.string().optional(), enabledConnectors: z.array(z.string()).optional() }))
@@ -99,7 +100,7 @@ export const appRouter = router({
         const conv = await db.getConversation(input.id);
         if (!conv || conv.userId !== ctx.user!.id) throw new Error("Unauthorized");
         const { id, ...data } = input;
-        await db.updateConversation(id, data);
+        await db.updateConversation(id, data as any);
         return { success: true };
       }),
     delete: protectedProcedure
@@ -218,6 +219,31 @@ export const appRouter = router({
       claude.disconnect();
       return { success: true };
     }),
+  }),
+
+  computer: router({
+    status: protectedProcedure.query(async () => getComputerSnapshot()),
+    snapshot: protectedProcedure.query(async () => getComputerSnapshot()),
+    launch: protectedProcedure.mutation(async () => launchComputer()),
+    close: protectedProcedure.mutation(async () => closeComputer()),
+    action: protectedProcedure
+      .input(z.object({
+        kind: z.enum(["click", "doubleClick", "rightClick", "move", "scroll", "type", "press", "launch", "open", "command"]),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        amount: z.number().optional(),
+        text: z.string().optional(),
+        chunkSize: z.number().optional(),
+        delayInMs: z.number().optional(),
+        keys: z.union([z.string(), z.array(z.string())]).optional(),
+        app: z.string().optional(),
+        path: z.string().optional(),
+        command: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const snapshot = await performComputerAction(input as any);
+        return snapshot;
+      }),
   }),
 
   tools: router({

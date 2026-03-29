@@ -2,6 +2,8 @@ import * as db from "../db";
 
 import * as nvidia from "../nvidia";
 import { executeTool } from "../tools";
+import { buildForgeSystemMessages } from "./promptContext";
+import { getComputerSnapshot } from "../computer";
 
 type AgentPlan = {
   goal: string;
@@ -43,6 +45,9 @@ Provide a JSON response with this structure:
 
   try {
     const messages = [
+      ...(await buildForgeSystemMessages(userId, {
+        computerSnapshot: await getComputerSnapshot().catch(() => null),
+      })),
       { role: "system" as const, content: "You are a task planning expert. Respond with valid JSON only." },
       { role: "user" as const, content: planPrompt },
     ];
@@ -162,6 +167,9 @@ Expected Output: ${step.expectedOutput || "N/A"}
 Provide a concise result.`;
 
           const messages = [
+            ...(await buildForgeSystemMessages(userId, {
+              computerSnapshot: await getComputerSnapshot().catch(() => null),
+            })),
             { role: "system" as const, content: "You are a task executor. Be concise and practical." },
             { role: "user" as const, content: stepPrompt },
           ];

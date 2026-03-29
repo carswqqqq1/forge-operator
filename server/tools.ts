@@ -6,11 +6,35 @@ import { exec } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import type { OllamaTool } from "./ollama";
+import {
+  closeComputer,
+  getComputerSnapshot,
+  launchComputer,
+  performComputerAction,
+} from "./computer";
 
 export interface ToolResult {
   success: boolean;
   output: string;
   durationMs: number;
+}
+
+function summarizeComputerSnapshot(snapshot: Awaited<ReturnType<typeof getComputerSnapshot>>) {
+  return JSON.stringify(
+    {
+      mode: snapshot.mode,
+      connected: snapshot.connected,
+      status: snapshot.status,
+      title: snapshot.title,
+      url: snapshot.url,
+      streamUrl: snapshot.streamUrl,
+      lastUpdated: snapshot.lastUpdated,
+      error: snapshot.error ?? null,
+      screenshot: snapshot.screenshot ? "available" : null,
+    },
+    null,
+    2
+  );
 }
 
 // ─── Tool Definitions for Ollama ─────────────────────────────────────
@@ -151,6 +175,85 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "computer_snapshot",
+      description: "Get the current Forge computer snapshot, including status and stream information.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "computer_launch",
+      description: "Launch or refresh the Forge computer desktop.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "computer_action",
+      description: "Perform a direct action on the Forge computer desktop such as click, type, scroll, launch an app, or run a command.",
+      parameters: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: [
+              "click",
+              "doubleClick",
+              "rightClick",
+              "move",
+              "scroll",
+              "type",
+              "press",
+              "launch",
+              "open",
+              "command",
+            ],
+          },
+          x: { type: "number" },
+          y: { type: "number" },
+          amount: { type: "number" },
+          text: { type: "string" },
+          chunkSize: { type: "number" },
+          delayInMs: { type: "number" },
+          keys: {
+            anyOf: [
+              { type: "string" },
+              { type: "array", items: { type: "string" } },
+            ],
+          },
+          app: { type: "string" },
+          path: { type: "string" },
+          command: { type: "string" },
+        },
+        required: ["kind"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "computer_close",
+      description: "Close the Forge computer desktop and release the sandbox.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
 ];
 
 // ─── Tool Executor ───────────────────────────────────────────────────
@@ -217,6 +320,26 @@ export async function executeTool(
           output = "Memory recall not available";
         }
         break;
+      case "computer_snapshot": {
+        const snapshot = await getComputerSnapshot();
+        output = summarizeComputerSnapshot(snapshot);
+        break;
+      }
+      case "computer_launch": {
+        const snapshot = await launchComputer();
+        output = summarizeComputerSnapshot(snapshot);
+        break;
+      }
+      case "computer_action": {
+        const snapshot = await performComputerAction(args as any);
+        output = summarizeComputerSnapshot(snapshot);
+        break;
+      }
+      case "computer_close": {
+        const snapshot = await closeComputer();
+        output = summarizeComputerSnapshot(snapshot);
+        break;
+      }
       default:
         output = `Unknown tool: ${toolName}`;
         return { success: false, output, durationMs: Date.now() - start };

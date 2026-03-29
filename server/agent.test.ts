@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import path from "path";
 import { executeTool, getToolSummary, AVAILABLE_TOOLS } from "./tools";
 import * as ollama from "./ollama";
 
@@ -16,6 +17,10 @@ describe("Tool Definitions", () => {
     expect(names).toContain("web_search");
     expect(names).toContain("memory_store");
     expect(names).toContain("memory_recall");
+    expect(names).toContain("computer_snapshot");
+    expect(names).toContain("computer_launch");
+    expect(names).toContain("computer_action");
+    expect(names).toContain("computer_close");
   });
 
   it("all tools have required structure", () => {
@@ -96,10 +101,12 @@ describe("Tool Execution - file operations", () => {
 });
 
 describe("Tool Execution - file_search", () => {
+  const serverDir = path.join(process.cwd(), "server");
+
   it("searches for files by glob pattern", async () => {
     const result = await executeTool("file_search", {
       pattern: "*.ts",
-      directory: "/home/ubuntu/local-manus-agent/server",
+      directory: serverDir,
       type: "glob",
     });
     expect(result.success).toBe(true);
@@ -109,7 +116,7 @@ describe("Tool Execution - file_search", () => {
   it("searches for content with grep", async () => {
     const result = await executeTool("file_search", {
       pattern: "executeTool",
-      directory: "/home/ubuntu/local-manus-agent/server",
+      directory: serverDir,
       type: "grep",
     });
     expect(result.success).toBe(true);
