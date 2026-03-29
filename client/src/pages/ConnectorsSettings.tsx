@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { startConnectorAuth } from "@/lib/connector-auth";
 import { appDefinitions, type AppDefinition } from "@/components/connectors-data";
+import { GithubConnectorModal } from "@/components/github-connector-modal";
 import { Check, ChevronRight, Github, Plug, RefreshCw, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -39,10 +40,12 @@ function ConnectorBadge({ connected }: { connected: boolean }) {
 function ConnectorCard({
   app,
   connected,
+  actionLabel,
   onToggle,
 }: {
   app: AppDefinition;
   connected: boolean;
+  actionLabel?: string;
   onToggle: () => void;
 }) {
   const copy = connectorCopy[app.type] ?? connectorCopy.github;
@@ -72,7 +75,7 @@ function ConnectorCard({
           }`}
         >
           {connected ? <RefreshCw className="h-4 w-4" /> : null}
-          {connected ? "Disconnect" : `Authorize ${copy.title}`}
+          {actionLabel || (connected ? "Disconnect" : `Authorize ${copy.title}`)}
         </button>
       </div>
 
@@ -95,6 +98,7 @@ function ConnectorCard({
 
 export default function ConnectorsSettings() {
   const { data: connectors, refetch } = trpc.connectors.list.useQuery();
+  const [githubModalOpen, setGithubModalOpen] = useState(false);
   const [githubToken, setGithubToken] = useState("");
   const [githubTokenLoading, setGithubTokenLoading] = useState(false);
 
@@ -105,6 +109,33 @@ export default function ConnectorsSettings() {
     });
     return map;
   }, [connectors]);
+
+  const disconnectGithub = async () => {
+    const response = await fetch("/api/connectors/disconnect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ service: "github" }),
+    });
+    if (!response.ok) {
+      throw new Error("Failed to disconnect GitHub");
+    }
+    await refetch();
+    toast.success("GitHub disconnected");
+  };
+
+  const connectGithubOAuth = async () => {
+    const response = await fetch("/api/connectors/github/auth", { credentials: "include" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || "Failed to initiate GitHub authentication");
+    }
+
+    const data = await response.json();
+    await startConnectorAuth(data.authUrl, "github");
+    await refetch();
+    toast.success("GitHub connected");
+  };
 
   const connectGithubToken = async () => {
     const token = githubToken.trim();
@@ -132,13 +163,18 @@ export default function ConnectorsSettings() {
     } catch (error) {
       console.error("[ConnectorsSettings] GitHub token failed:", error);
       toast.error(error instanceof Error ? error.message : "Failed to connect GitHub token");
-    } finally {
-      setGithubTokenLoading(false);
-    }
+      } finally {
+        setGithubTokenLoading(false);
+      }
   };
 
   const handleToggle = async (app: AppDefinition) => {
     const connected = connectorsByType.has(app.type);
+
+    if (app.type === "github") {
+      setGithubModalOpen(true);
+      return;
+    }
 
     if (connected) {
       const response = await fetch("/api/connectors/disconnect", {
@@ -158,9 +194,7 @@ export default function ConnectorsSettings() {
 
     try {
       const authEndpoint =
-        app.type === "github"
-          ? "/api/connectors/github/auth"
-          : `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`;
+        `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`;
 
       const response = await fetch(authEndpoint, { credentials: "include" });
       if (!response.ok) {
@@ -215,11 +249,11 @@ export default function ConnectorsSettings() {
           </div>
           <button
             type="button"
-            onClick={() => void handleToggle(appDefinitions[0])}
+            onClick={() => setGithubModalOpen(true)}
             className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#111111] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f1f]"
           >
             <Github className="h-4 w-4" />
-            {connectorsByType.has("github") ? "Disconnect GitHub" : "Authorize GitHub"}
+            {connectorsByType.has("github") ? "Manage GitHub" : "Authorize GitHub"}
           </button>
         </div>
 
@@ -248,7 +282,13 @@ export default function ConnectorsSettings() {
 
       <div className="grid gap-4">
         {appDefinitions.map((app) => (
-          <ConnectorCard key={app.key} app={app} connected={connectorsByType.has(app.type)} onToggle={() => void handleToggle(app)} />
+          <ConnectorCard
+            key={app.key}
+            app={app}
+            connected={connectorsByType.has(app.type)}
+            actionLabel={app.type === "github" ? (connectorsByType.has("github") ? "Manage GitHub" : "Authorize GitHub") : undefined}
+            onToggle={() => (app.type === "github" ? setGithubModalOpen(true) : void handleToggle(app))}
+          />
         ))}
       </div>
 
@@ -260,6 +300,14 @@ export default function ConnectorsSettings() {
           <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Disconnect anytime and revoke access instantly.</div>
         </div>
       </div>
+
+      <GithubConnectorModal
+        open={githubModalOpen}
+        connected={connectorsByType.has("github")}
+        onOpenChange={setGithubModalOpen}
+        onConnect={() => void connectGithubOAuth()}
+        onDisconnect={() => void disconnectGithub()}
+      />
     </div>
   );
 }

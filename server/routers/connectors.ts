@@ -340,6 +340,61 @@ export function registerConnectorRoutes(app: Express) {
   });
 
   /**
+   * Get connected GitHub repositories
+   * GET /api/connectors/github/repos
+   */
+  app.get("/api/connectors/github/repos", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateRequest(req);
+      const manager = getConnectorManager();
+      const connector = await manager.getGitHubConnector(user.id);
+      const state = await manager.getConnectorState(user.id, "github");
+      const repoState = state?.state ? JSON.parse(state.state) : {};
+      const repositories = await connector.listRepositories(1, 100);
+      res.json({
+        repositories,
+        selectedRepos: Array.isArray(repoState?.selectedRepos) ? repoState.selectedRepos : [],
+        enabled: repoState?.enabled !== false,
+      });
+    } catch (error) {
+      console.error("[Connectors] GitHub repo list failed:", error);
+      res.status(500).json({ error: "Failed to list GitHub repositories" });
+    }
+  });
+
+  /**
+   * Save GitHub connector state
+   * POST /api/connectors/github/state
+   * Body: { selectedRepos?: string[], enabled?: boolean }
+   */
+  app.post("/api/connectors/github/state", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateRequest(req);
+      const selectedRepos = Array.isArray(req.body?.selectedRepos) ? req.body.selectedRepos.map(String) : [];
+      const enabled = req.body?.enabled !== false;
+
+      const manager = getConnectorManager();
+      const existing = await manager.getConnectorState(user.id, "github");
+      if (!existing) {
+        return res.status(404).json({ error: "GitHub is not connected" });
+      }
+
+      await manager.saveConnectorState(user.id, "github", {
+        accessToken: existing.accessToken,
+        refreshToken: existing.refreshToken || undefined,
+        expiresAt: existing.expiresAt,
+        userId: existing.userId || String(user.id),
+        state: JSON.stringify({ selectedRepos, enabled }),
+      });
+
+      res.json({ success: true, selectedRepos, enabled });
+    } catch (error) {
+      console.error("[Connectors] GitHub state save failed:", error);
+      res.status(500).json({ error: "Failed to save GitHub state" });
+    }
+  });
+
+  /**
    * List connected services for current user
    * GET /api/connectors/list
    */

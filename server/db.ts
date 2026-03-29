@@ -749,6 +749,7 @@ export async function saveConnectorState(
     refreshToken?: string;
     expiresAt: number;
     userId?: string;
+    state?: string;
   }
 ): Promise<void> {
   const db = await getDb();
@@ -789,6 +790,7 @@ export async function saveConnectorState(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken || null,
         expiresAt: state.expiresAt,
+        state: state.state || null,
       })
       .where(eq(connectorStates.id, existing[0].id));
   } else {
@@ -798,6 +800,7 @@ export async function saveConnectorState(
       accessToken: state.accessToken,
       refreshToken: state.refreshToken || undefined,
       expiresAt: state.expiresAt,
+      state: state.state || undefined,
     });
   }
 }

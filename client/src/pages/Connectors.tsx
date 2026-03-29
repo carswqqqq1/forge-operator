@@ -20,6 +20,7 @@ import { useMemo, useState } from "react"
 import { useLocation } from "wouter"
 import { toast } from "sonner"
 import { startConnectorAuth } from "@/lib/connector-auth"
+import { GithubConnectorModal } from "@/components/github-connector-modal"
 
 type Screen = "main" | "add" | "manage"
 type Tab = "apps" | "api" | "mcp"
@@ -282,6 +283,7 @@ export default function Connectors() {
 
   const [screen, setScreen] = useState<Screen>("main")
   const [tab, setTab] = useState<Tab>("apps")
+  const [githubModalOpen, setGithubModalOpen] = useState(false)
 
   const connectorsByType = useMemo(() => {
     const map = new Map<string, any>()
@@ -323,7 +325,46 @@ export default function Connectors() {
     }
   }
 
+  const connectGithubOAuth = async () => {
+    try {
+      const response = await fetch("/api/connectors/github/auth", { credentials: "include" })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error || "Failed to initiate GitHub authentication")
+      }
+
+      const data = await response.json()
+      await startConnectorAuth(data.authUrl, "github")
+      await refetch()
+      toast.success("GitHub connected")
+    } catch (error) {
+      console.error("[Connectors] GitHub OAuth connection failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to connect GitHub")
+    }
+  }
+
+  const disconnectGithub = async () => {
+    try {
+      const response = await fetch("/api/connectors/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ service: "github" }),
+      })
+      if (!response.ok) throw new Error("Failed to disconnect GitHub")
+      await refetch()
+      toast.success("GitHub disconnected")
+    } catch (error) {
+      console.error("[Connectors] GitHub disconnect failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to disconnect GitHub")
+    }
+  }
+
   const handleAuth = async (app: AppDefinition) => {
+    if (app.type === "github") {
+      setGithubModalOpen(true)
+      return
+    }
     const alreadyConnected = isConnected(app.type)
     if (alreadyConnected) {
       try {
@@ -346,11 +387,7 @@ export default function Connectors() {
 
     try {
       let authEndpoint = ""
-      if (app.type === "github") {
-        authEndpoint = "/api/connectors/github/auth"
-      } else {
-        authEndpoint = `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`
-      }
+      authEndpoint = `/api/connectors/google/auth?service=${app.type === "google_drive" ? "drive" : "gmail"}`
 
       const response = await fetch(authEndpoint, { credentials: "include" })
       if (!response.ok) {
@@ -394,11 +431,11 @@ export default function Connectors() {
             </div>
             <button
               type="button"
-              onClick={() => void handleAuth(appDefinitions[0])}
+              onClick={() => setGithubModalOpen(true)}
               className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#111111] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f1f]"
             >
               <GithubBrandIcon className="h-4 w-4" />
-              {isConnected("github") ? "Disconnect GitHub" : "Authorize GitHub"}
+              {isConnected("github") ? "Manage GitHub" : "Authorize GitHub"}
             </button>
           </div>
           <div className="mt-4 flex flex-col gap-3 md:flex-row">
@@ -411,9 +448,9 @@ export default function Connectors() {
             />
             <button
               type="button"
-              onClick={() => void connectGithubToken()}
-              disabled={githubTokenLoading}
-              className="inline-flex h-11 items-center justify-center rounded-full bg-[#f3f0ea] px-5 text-[13px] font-medium text-[#3b3632] transition-colors hover:bg-[#ebe7df] disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => void connectGithubToken()}
+            disabled={githubTokenLoading}
+            className="inline-flex h-11 items-center justify-center rounded-full bg-[#f3f0ea] px-5 text-[13px] font-medium text-[#3b3632] transition-colors hover:bg-[#ebe7df] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {githubTokenLoading ? "Saving..." : "Connect token"}
             </button>
@@ -467,6 +504,14 @@ export default function Connectors() {
           <ChevronRight className="h-6 w-6 text-[#8a847c]" />
         </button>
       </div>
+
+      <GithubConnectorModal
+        open={githubModalOpen}
+        connected={isConnected("github")}
+        onOpenChange={setGithubModalOpen}
+        onConnect={() => void connectGithubOAuth()}
+        onDisconnect={() => void disconnectGithub()}
+      />
     </div>
   )
 
