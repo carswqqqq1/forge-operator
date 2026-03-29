@@ -10,6 +10,8 @@ import { authenticateRequest } from "../_core/middleware";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
 const APP_URL = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
 
 let connectorManager: ConnectorManager | null = null;
@@ -19,6 +21,8 @@ function getConnectorManager(): ConnectorManager {
     connectorManager = new ConnectorManager({
       googleClientId: GOOGLE_CLIENT_ID,
       googleClientSecret: GOOGLE_CLIENT_SECRET,
+      githubClientId: GITHUB_CLIENT_ID,
+      githubClientSecret: GITHUB_CLIENT_SECRET,
       appUrl: APP_URL,
     });
   }
@@ -102,6 +106,69 @@ export function registerConnectorRoutes(app: Express) {
       res.redirect(`/?connector=${service}&status=connected`);
     } catch (error) {
       console.error("[Connectors] Callback failed:", error);
+      res.redirect("/login?error=callback_failed");
+    }
+  });
+
+  /**
+   * Initiate GitHub OAuth flow
+   * GET /api/connectors/github/auth
+   */
+  app.get("/api/connectors/github/auth", async (req: Request, res: Response) => {
+    try {
+      const user = await authenticateRequest(req);
+
+      if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
+        return res.status(400).json({ error: "GitHub OAuth not configured" });
+      }
+
+      const manager = getConnectorManager();
+      const connector = await manager.getGitHubConnector(user.id);
+
+      const state = Buffer.from(
+        JSON.stringify({ userId: user.id, service: "github", timestamp: Date.now() })
+      ).toString("base64");
+
+      const authUrl = connector.getAuthorizationUrl(state);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("[Connectors] GitHub auth initiation failed:", error);
+      res.status(500).json({ error: "Failed to initiate GitHub authentication" });
+    }
+  });
+
+  /**
+   * Handle OAuth callback from GitHub
+   * GET /api/connectors/github/callback?code=...&state=...
+   */
+  app.get("/api/connectors/github/callback", async (req: Request, res: Response) => {
+    try {
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+
+      if (!code || !state) {
+        return res.redirect("/login?error=missing_code_or_state");
+      }
+
+      let stateData;
+      try {
+        stateData = JSON.parse(Buffer.from(state, "base64").toString());
+      } catch {
+        return res.redirect("/login?error=invalid_state");
+      }
+
+      const { userId } = stateData;
+      const manager = getConnectorManager();
+      const connector = await manager.getGitHubConnector(userId);
+
+      const tokenState = await connector.exchangeCodeForToken(code);
+      tokenState.userId = userId.toString();
+
+      await manager.saveConnectorState(userId, "github", tokenState);
+
+      res.redirect("/?connector=github&status=connected");
+    } catch (error) {
+      console.error("[Connectors] GitHub callback failed:", error);
       res.redirect("/login?error=callback_failed");
     }
   });

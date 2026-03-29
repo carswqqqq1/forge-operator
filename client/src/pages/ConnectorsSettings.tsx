@@ -1,6 +1,6 @@
 /**
  * Connectors Settings Component
- * Manage Google Drive and Gmail connections
+ * Manage Google Drive, Gmail, and GitHub connections
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,41 +8,72 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Mail, FileText, CheckCircle2, XCircle, Loader2, Link2, Unplug 
+  Mail, FileText, CheckCircle2, Loader2, Link2, Unplug, Github, RefreshCw, ExternalLink
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
+type ConnectorType = "google_drive" | "gmail" | "github";
+
 interface ConnectorStatus {
-  type: "google_drive" | "gmail";
+  type: ConnectorType;
   connected: boolean;
   name: string;
   icon: React.ReactNode;
   description: string;
   color: string;
+  capabilities: string[];
+  envVars: string[];
 }
 
 export default function ConnectorsSettings() {
   const [connectors, setConnectors] = useState<ConnectorStatus[]>([
     {
-      type: "google_drive",
+      type: "github",
       connected: false,
-      name: "Google Drive",
-      icon: <FileText className="h-5 w-5" />,
-      description: "Access and manage files from your Google Drive",
-      color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      name: "GitHub",
+      icon: <Github className="h-5 w-5" />,
+      description: "Access your GitHub repositories directly in Forge to analyze, search, and cite code.",
+      color: "bg-zinc-900/10 text-zinc-900 border-zinc-900/20 dark:bg-white/10 dark:text-white dark:border-white/20",
+      capabilities: [
+        "Access your GitHub repositories directly in ChatGPT to analyze, search, and cite code.",
+        "Ask questions based on your own code.",
+        "Pull live data from your repositories—code, README files, and other docs."
+      ],
+      envVars: ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "APP_URL"]
     },
     {
       type: "gmail",
       connected: false,
       name: "Gmail",
       icon: <Mail className="h-5 w-5" />,
-      description: "Access and search emails from your Gmail account",
+      description: "Inbox search, email drafting, and thread summaries",
       color: "bg-red-500/10 text-red-500 border-red-500/20",
+      capabilities: [
+        "Search inbox threads and summarize the highest-priority conversations",
+        "Draft replies and follow-ups from task context",
+        "Use email history as memory for campaigns and automations"
+      ],
+      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_URL"]
+    },
+    {
+      type: "google_drive",
+      connected: false,
+      name: "Google Drive",
+      icon: <FileText className="h-5 w-5" />,
+      description: "Docs, files, search, and repo summaries",
+      color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      capabilities: [
+        "List and browse your Drive files",
+        "Search for specific files",
+        "Download file contents",
+        "Access file metadata"
+      ],
+      envVars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_URL"]
     },
   ]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   // Fetch connected services on mount
@@ -72,10 +103,17 @@ export default function ConnectorsSettings() {
     }
   };
 
-  const handleConnect = async (service: "google_drive" | "gmail") => {
-    setLoading(true);
+  const handleConnect = async (service: ConnectorType) => {
+    setLoading(service);
     try {
-      const response = await fetch(`/api/connectors/google/auth?service=${service === "google_drive" ? "drive" : "gmail"}`, {
+      let authEndpoint = "";
+      if (service === "github") {
+        authEndpoint = "/api/connectors/github/auth";
+      } else {
+        authEndpoint = `/api/connectors/google/auth?service=${service === "google_drive" ? "drive" : "gmail"}`;
+      }
+
+      const response = await fetch(authEndpoint, {
         credentials: "include",
       });
 
@@ -86,14 +124,14 @@ export default function ConnectorsSettings() {
         window.location.href = data.authUrl;
       }
     } catch (error) {
-      toast.error(`Failed to connect ${service === "google_drive" ? "Google Drive" : "Gmail"}`);
+      toast.error(`Failed to connect ${service.replace("_", " ")}`);
       console.error("[ConnectorsSettings] Connection failed:", error);
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
-  const handleDisconnect = async (service: "google_drive" | "gmail") => {
+  const handleDisconnect = async (service: ConnectorType) => {
     setDisconnecting(service);
     try {
       const response = await fetch("/api/connectors/disconnect", {
@@ -111,9 +149,9 @@ export default function ConnectorsSettings() {
         )
       );
 
-      toast.success(`${service === "google_drive" ? "Google Drive" : "Gmail"} disconnected`);
+      toast.success(`${service.replace("_", " ")} disconnected`);
     } catch (error) {
-      toast.error(`Failed to disconnect ${service === "google_drive" ? "Google Drive" : "Gmail"}`);
+      toast.error(`Failed to disconnect ${service.replace("_", " ")}`);
       console.error("[ConnectorsSettings] Disconnection failed:", error);
     } finally {
       setDisconnecting(null);
@@ -121,81 +159,142 @@ export default function ConnectorsSettings() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Connected Services</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect your Google account to access Drive files and Gmail messages
+          Connect your accounts to access files, emails, and code repositories
         </p>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-6">
         {connectors.map((connector) => (
-          <Card key={connector.type} className="bg-card border-border/50">
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1">
-                  <div className={`h-10 w-10 rounded-lg ${connector.color} flex items-center justify-center flex-shrink-0`}>
+          <Card key={connector.type} className="bg-card border-border/50 overflow-hidden">
+            <CardContent className="p-0">
+              {/* Header Section */}
+              <div className="p-4 flex items-center justify-between border-b border-border/50 bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <div className={`h-10 w-10 rounded-lg ${connector.color} flex items-center justify-center flex-shrink-0 border`}>
                     {connector.icon}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-medium">{connector.name}</h3>
-                      {connector.connected ? (
-                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] h-5">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Connected
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] h-5 text-muted-foreground">
-                          Not connected
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold">{connector.name}</h3>
+                      {connector.connected && (
+                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px] h-5 font-medium">
+                          Connected
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{connector.description}</p>
+                    <p className="text-xs text-muted-foreground font-medium">{connector.description}</p>
                   </div>
                 </div>
 
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2">
                   {connector.connected ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDisconnect(connector.type)}
-                      disabled={disconnecting === connector.type}
-                    >
-                      {disconnecting === connector.type ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Disconnecting...
-                        </>
-                      ) : (
-                        <>
-                          <Unplug className="h-3 w-3 mr-1" />
-                          Disconnect
-                        </>
-                      )}
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs font-bold"
+                        onClick={() => handleDisconnect(connector.type)}
+                        disabled={disconnecting === connector.type}
+                      >
+                        {disconnecting === connector.type ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : "Disconnect"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs font-bold"
+                        onClick={() => fetchConnectorStatus()}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" /> Refresh
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs font-bold"
+                      >
+                        Try in Forge <ExternalLink className="h-3 w-3 ml-1" />
+                      </Button>
+                    </>
                   ) : (
                     <Button
-                      variant="outline"
+                      variant="default"
                       size="sm"
-                      className="h-8 text-xs"
+                      className="h-8 text-xs font-bold bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                       onClick={() => handleConnect(connector.type)}
-                      disabled={loading}
+                      disabled={loading === connector.type}
                     >
-                      {loading ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="h-3 w-3 mr-1" />
-                          Connect
-                        </>
-                      )}
+                      {loading === connector.type ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : `Authorize ${connector.name}`}
                     </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Content Section */}
+              <div className="grid md:grid-cols-2 divide-x divide-border/50">
+                {/* Left: Capabilities */}
+                <div className="p-4 space-y-4">
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-3">What Forge can do</h4>
+                    <ul className="space-y-2">
+                      {connector.capabilities.map((cap, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs font-medium">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 flex-shrink-0" />
+                          <span>{cap}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Required env / auth</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {connector.envVars.map((env) => (
+                        <code key={env} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono border border-border/50">
+                          {env}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Status/Action */}
+                <div className="p-4 bg-muted/10 flex flex-col justify-center items-center text-center min-h-[160px]">
+                  {connector.connected ? (
+                    <div className="space-y-3">
+                      <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-green-500/10 text-green-500 mb-1">
+                        <CheckCircle2 className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold uppercase tracking-tight">{connector.name} account connected</h4>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-[240px]">
+                          Forge can access the connected {connector.name} account for this app and pull live context into tasks.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 w-full max-w-[280px]">
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((step) => (
+                          <div key={step} className="flex items-center gap-3 p-2 rounded-lg border border-border/50 bg-background text-left">
+                            <span className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md bg-muted text-[10px] font-bold border border-border/50">
+                              {step}
+                            </span>
+                            <span className="text-[10px] font-medium text-muted-foreground leading-tight">
+                              {step === 1 && `Create a ${connector.name} OAuth App or add a token for local development.`}
+                              {step === 2 && `Grant ${connector.type === 'github' ? 'repo' : 'account'} access for the resources you want Forge to inspect.`}
+                              {step === 3 && `Store the token server-side so task runs can search and read resources.`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -203,38 +302,6 @@ export default function ConnectorsSettings() {
           </Card>
         ))}
       </div>
-
-      <Separator />
-
-      <Card className="bg-card border-border/50">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            What can you do?
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <h4 className="text-xs font-medium mb-2">Google Drive</h4>
-            <ul className="text-xs text-muted-foreground space-y-1 ml-4 list-disc">
-              <li>List and browse your Drive files</li>
-              <li>Search for specific files</li>
-              <li>Download file contents</li>
-              <li>Access file metadata</li>
-            </ul>
-          </div>
-          <Separator />
-          <div>
-            <h4 className="text-xs font-medium mb-2">Gmail</h4>
-            <ul className="text-xs text-muted-foreground space-y-1 ml-4 list-disc">
-              <li>List and search emails</li>
-              <li>View email threads</li>
-              <li>Access email labels</li>
-              <li>Read email content and metadata</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
