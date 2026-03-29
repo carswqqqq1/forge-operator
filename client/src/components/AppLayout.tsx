@@ -131,7 +131,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {!isCollapsed && (
               <button
                 onClick={toggleSidebar}
-                className="ml-auto h-7 w-7 shrink-0 rounded-md transition-colors hover:bg-accent flex items-center justify-center"
+                className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[#f4f1eb]"
               >
                 <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -139,7 +139,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
             {isCollapsed && (
               <button
                 onClick={toggleSidebar}
-                className="mx-auto h-7 w-7 rounded-md transition-colors hover:bg-accent flex items-center justify-center"
+                className="mx-auto flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[#f4f1eb]"
               >
                 <Menu className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -153,7 +153,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation("/")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors",
-                isActive("/") ? "bg-accent text-foreground" : "text-foreground hover:bg-accent"
+                isActive("/") ? "bg-[#f0ede7] text-foreground" : "text-foreground hover:bg-[#f4f1eb]"
               )}
             >
               <PenLine className="h-4 w-4 shrink-0" />
@@ -164,7 +164,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation("/skills")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                isActive("/skills") ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                isActive("/skills") ? "bg-[#f0ede7] text-foreground font-medium" : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
               )}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
@@ -175,7 +175,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setSearchOpen(true)}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                searchOpen ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                searchOpen ? "bg-[#f0ede7] text-foreground font-medium" : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
               )}
             >
               <Search className="h-4 w-4 shrink-0" />
@@ -186,7 +186,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               onClick={() => setLocation("/memory")}
               className={cn(
                 "w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm transition-colors",
-                isActive("/memory") ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                isActive("/memory") ? "bg-[#f0ede7] text-foreground font-medium" : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
               )}
             >
               <Library className="h-4 w-4 shrink-0" />
@@ -201,14 +201,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   <span className="text-xs font-medium text-muted-foreground">Projects</span>
                   <button
                     onClick={() => setLocation("/connectors")}
-                    className="h-5 w-5 rounded transition-colors hover:bg-accent flex items-center justify-center"
+                    className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-[#f4f1eb]"
                   >
                     <Plus className="h-3 w-3 text-muted-foreground" />
                   </button>
                 </div>
                 <button
                   onClick={() => setLocation("/connectors")}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-[#f4f1eb] hover:text-foreground"
                 >
                   <FolderPlus className="h-4 w-4 shrink-0" />
                   <span>New project</span>
@@ -220,7 +220,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <div>
                 <div className="mb-1 flex items-center justify-between px-2.5">
                   <span className="text-xs font-medium text-muted-foreground">All tasks</span>
-                  <button className="h-5 w-5 rounded transition-colors hover:bg-accent flex items-center justify-center">
+                  <button className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-[#f4f1eb]">
                     <Filter className="h-3 w-3 text-muted-foreground" />
                   </button>
                 </div>
@@ -233,7 +233,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                           onClick={() => setLocation(`/chat/${conv.id}`)}
                           className={cn(
                             "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors group",
-                            location === `/chat/${conv.id}` ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                            location === `/chat/${conv.id}` ? "bg-[#f0ede7] text-foreground" : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
                           )}
                         >
                           <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -265,7 +265,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                         onClick={() => setLocation(item.path)}
                         className={cn(
                           "h-8 flex items-center justify-center rounded-md transition-colors",
-                          isActive(item.path) ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                          isActive(item.path) ? "bg-[#f0ede7] text-foreground" : "text-muted-foreground hover:bg-[#f4f1eb] hover:text-foreground"
                         )}
                       >
                         <item.icon className="h-3.5 w-3.5" />
@@ -297,14 +297,14 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[#5f5953] transition-colors hover:bg-[#efede8]"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[#5f5953] transition-colors hover:bg-[#f4f1eb]"
               >
                 <Menu className="h-5 w-5" />
               </button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button type="button" className="flex items-center gap-1.5 rounded-md px-1 py-1 text-[18px] font-medium tracking-[-0.03em] text-[#36322d] transition-colors hover:bg-[#efede8]">
+                <button type="button" className="flex items-center gap-1.5 rounded-md px-1 py-1 text-[18px] font-medium tracking-[-0.03em] text-[#36322d] transition-colors hover:bg-[#f4f1eb]">
                   <span>{currentModel}</span>
                   <ChevronDown className="h-4 w-4 text-[#7a746c]" />
                 </button>
@@ -332,11 +332,11 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
-            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full border border-[#ddd8cf] bg-[#f8f7f4] text-[#5f5953] transition-colors hover:bg-[#efede8]">
+            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full border border-[#ddd8cf] bg-[#f8f7f4] text-[#5f5953] transition-colors hover:bg-[#f4f1eb]">
               <Bell className="h-5 w-5" />
               <span className="absolute right-[13px] top-[12px] h-2.5 w-2.5 rounded-full bg-[#ff7f96]" />
             </button>
-            <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#ddd8cf] bg-[#f8f7f4] px-4 text-[#36322d] transition-colors hover:bg-[#efede8]">
+            <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#ddd8cf] bg-[#f8f7f4] px-4 text-[#36322d] transition-colors hover:bg-[#f4f1eb]">
               <Gem className="h-5 w-5 text-[#6d675f]" />
               <span className="text-[18px] font-medium">{credits}</span>
             </button>
@@ -365,7 +365,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                   placeholder="Search"
                   className="flex-1 bg-transparent text-sm outline-none"
                 />
-                <span className="rounded-md bg-accent px-2 py-0.5 text-xs text-muted-foreground">ESC</span>
+                <span className="rounded-md bg-[#f0ede7] px-2 py-0.5 text-xs text-muted-foreground">ESC</span>
               </div>
             </div>
             <div className="max-h-[420px] overflow-y-auto p-2">
@@ -383,8 +383,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
                     key={item}
                     type="button"
                     className={cn(
-                      "flex w-full items-start justify-between rounded-xl px-3 py-3 text-left hover:bg-accent",
-                      index === 0 && "bg-accent/70"
+                      "flex w-full items-start justify-between rounded-xl px-3 py-3 text-left hover:bg-[#f4f1eb]",
+                      index === 0 && "bg-[#f0ede7]"
                     )}
                   >
                     <div>

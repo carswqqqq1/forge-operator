@@ -406,8 +406,8 @@ export default function Home({ conversationId }: { conversationId?: string }) {
             <div className="mx-auto mt-6 w-full max-w-[760px] md:mt-10">
               <h1 className="text-center font-serif text-[86px] font-medium leading-[0.9] tracking-[-0.085em] text-[#17151c] md:text-[110px]">What can I do<br />for you?</h1>
 
-              <div className="mt-8 overflow-hidden rounded-[32px] border border-[#ded9d1] bg-white shadow-[0_8px_30px_rgba(42,37,30,0.05)]">
-                <div className="px-6 pt-6">
+              <div className="mt-7 overflow-hidden rounded-[30px] border border-[#ded9d1] bg-white shadow-[0_8px_30px_rgba(42,37,30,0.05)]">
+                <div className="px-5 pt-5">
                   <textarea
                     ref={textareaRef}
                     value={input}
@@ -417,20 +417,20 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                     rows={4}
                     spellCheck={false}
                     autoFocus
-                    className="min-h-[180px] w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-8 text-[#2f2b27] outline-none placeholder:text-[#6e6963]"
+                    className="min-h-[166px] w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-8 text-[#2f2b27] outline-none placeholder:text-[#6e6963] focus-visible:ring-0 focus-visible:shadow-none"
                   />
 
                   <div className="mt-4 flex items-center justify-between pb-4">
-                    <div className="flex items-center gap-3">
-                      <button type="button" className="flex h-14 w-14 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f0eeea]"><Plus className="h-6 w-6" /></button>
+                    <div className="flex items-center gap-2.5">
+                      <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]"><Plus className="h-5 w-5" /></button>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button type="button" className="flex h-14 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-5 text-[16px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f0eeea]">
-                            <Link2 className="h-5 w-5" />
+                          <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-4.5 text-[15px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f4f1eb]">
+                            <Link2 className="h-4.5 w-4.5" />
                             <span>{connectorsByType.size ? `+${connectorsByType.size}` : "+0"}</span>
                           </button>
                         </PopoverTrigger>
-                        <PopoverContent align="start" side="top" sideOffset={12} className="w-[340px] rounded-[24px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
+                        <PopoverContent align="start" side="top" sideOffset={12} className="w-[320px] rounded-[22px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
                           <div className="space-y-1">
                             {connectorRows.map((row) => {
                               const connected = connectorsByType.has(row.type);
@@ -439,15 +439,15 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                                   key={row.key}
                                   type="button"
                                   onClick={() => handleConnectorToggle(row)}
-                                  className="flex w-full items-center justify-between rounded-[18px] px-3 py-2.5 text-left transition-colors hover:bg-[#f3f0ea]"
+                                  className="flex w-full items-center justify-between rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-[#f4f1eb]"
                                 >
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    <div className="grid h-9 w-9 place-items-center rounded-full bg-[#f7f5f1]">
-                                      <row.icon className="h-6 w-6" />
+                                  <div className="flex min-w-0 items-center gap-2.5">
+                                    <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f7f5f1]">
+                                      <row.icon className="h-5 w-5" />
                                     </div>
                                     <div className="min-w-0">
-                                      <div className="text-[14px] font-medium text-[#2f2b27]">{row.title}</div>
-                                      <div className="truncate text-[12px] leading-4 text-[#8a847c]">{row.description}</div>
+                                      <div className="text-[13px] font-medium text-[#2f2b27]">{row.title}</div>
+                                      <div className="truncate text-[11px] leading-4 text-[#8a847c]">{row.description}</div>
                                     </div>
                                   </div>
                                   <Switch checked={connected} className="pointer-events-none" />
@@ -455,25 +455,25 @@ export default function Home({ conversationId }: { conversationId?: string }) {
                               );
                             })}
                           </div>
-                          <div className="mt-2 grid gap-1 rounded-[18px] border border-[#ece7df] bg-[#fbfaf8] p-1">
-                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                          <div className="mt-2 grid gap-1 rounded-[16px] border border-[#ece7df] bg-[#fbfaf8] p-1">
+                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
                               <span>Add connectors</span>
-                              <ChevronRight className="h-4 w-4 text-[#8a847c]" />
+                              <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
                             </button>
-                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[14px] px-3 py-2 text-left text-[14px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                            <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
                               <span>Manage connectors</span>
-                              <ChevronRight className="h-4 w-4 text-[#8a847c]" />
+                              <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
                             </button>
                           </div>
                         </PopoverContent>
                       </Popover>
-                      <button type="button" onClick={() => setLocation("/connectors")} className="flex h-14 w-14 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f0eeea]"><Monitor className="h-5 w-5" /></button>
+                      <button type="button" onClick={() => setLocation("/connectors")} className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]"><Monitor className="h-4.5 w-4.5" /></button>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]"><AudioLines className="h-5 w-5" /></button>
-                      <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]"><Mic className="h-5 w-5" /></button>
-                      <button type="button" disabled={!input.trim() || !canSend} onClick={handleSend} className={cn("flex h-14 w-14 items-center justify-center rounded-full transition-colors", input.trim() && canSend ? "bg-[#121212] text-white hover:opacity-90" : "bg-[#ece9e4] text-[#b8b3ab] cursor-not-allowed")}><Send className="h-6 w-6" /></button>
+                    <div className="flex items-center gap-2.5">
+                      <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]"><AudioLines className="h-4.5 w-4.5" /></button>
+                      <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]"><Mic className="h-4.5 w-4.5" /></button>
+                      <button type="button" disabled={!input.trim() || !canSend} onClick={handleSend} className={cn("flex h-12 w-12 items-center justify-center rounded-full transition-colors", input.trim() && canSend ? "bg-[#121212] text-white hover:opacity-90" : "bg-[#ece9e4] text-[#b8b3ab] cursor-not-allowed")}><Send className="h-5 w-5" /></button>
                     </div>
                   </div>
                 </div>
