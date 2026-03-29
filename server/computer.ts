@@ -119,24 +119,40 @@ async function readStreamUrl(): Promise<string | null> {
   }
 }
 
-async function captureSnapshot() {
+function makeOfflineSnapshot(error: string | null = null): ForgeComputerSnapshot {
+  return {
+    mode: "none",
+    connected: false,
+    status: "offline",
+    title: "Forge computer",
+    url: "",
+    streamUrl: null,
+    screenshot: null,
+    lastUpdated: new Date().toISOString(),
+    error,
+  };
+}
+
+async function captureSnapshot(options: { launchIfMissing?: boolean } = {}) {
   if (!hasE2BEnv()) {
-    snapshotCache = {
-      mode: "none",
-      connected: false,
-      status: "offline",
-      title: "Forge computer is offline",
-      url: "",
-      streamUrl: null,
-      screenshot: null,
-      lastUpdated: new Date().toISOString(),
-      error: "E2B_API_KEY is not configured.",
-    };
+    snapshotCache = makeOfflineSnapshot("E2B_API_KEY is not configured.");
     return snapshotCache;
   }
 
   try {
-    const sandbox = await startDesktop();
+    if (!desktop) {
+      if (!options.launchIfMissing) {
+        snapshotCache = makeOfflineSnapshot("Launch the Forge computer to open the desktop.");
+        return snapshotCache;
+      }
+      await startDesktop();
+    }
+
+    const sandbox = desktop;
+    if (!sandbox) {
+      snapshotCache = makeOfflineSnapshot("Forge computer could not be started.");
+      return snapshotCache;
+    }
     const [screenshot, title, streamUrl] = await Promise.all([
       sandbox.screenshot().catch(() => null),
       readWindowTitle(),
@@ -172,7 +188,7 @@ async function captureSnapshot() {
 }
 
 export async function getComputerSnapshot() {
-  return captureSnapshot();
+  return captureSnapshot({ launchIfMissing: false });
 }
 
 export function getComputerSnapshotSync() {
@@ -180,7 +196,7 @@ export function getComputerSnapshotSync() {
 }
 
 export async function launchComputer() {
-  const snapshot = await captureSnapshot();
+  const snapshot = await captureSnapshot({ launchIfMissing: true });
   return snapshot;
 }
 
@@ -194,17 +210,7 @@ export async function closeComputer() {
   launchPromise = null;
   streamStarted = false;
   authKey = null;
-  snapshotCache = {
-    mode: "none",
-    connected: false,
-    status: "offline",
-    title: "Forge computer is offline",
-    url: "",
-    streamUrl: null,
-    screenshot: null,
-    lastUpdated: new Date().toISOString(),
-    error: null,
-  };
+  snapshotCache = makeOfflineSnapshot();
   return snapshotCache;
 }
 
@@ -213,7 +219,7 @@ export async function performComputerAction(action: ForgeComputerAction) {
     throw new Error("E2B_API_KEY is not configured.");
   }
 
-  const sandbox = await startDesktop();
+  const sandbox = desktop || (await startDesktop());
 
   switch (action.kind) {
     case "click":
@@ -248,5 +254,5 @@ export async function performComputerAction(action: ForgeComputerAction) {
       break;
   }
 
-  return captureSnapshot();
+  return captureSnapshot({ launchIfMissing: true });
 }

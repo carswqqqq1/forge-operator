@@ -557,134 +557,148 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
-          <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-            {displayMessages.map((msg) => {
-              if (msg.role === "tool") {
-                return <div key={msg.id} className="ml-11"><button onClick={() => toggleTool(msg.id)} className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground">{expandedTools.has(msg.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<Terminal className="h-3 w-3" /><span>Tool execution</span></button>{expandedTools.has(msg.id) && <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-accent/30 p-3 text-xs font-mono"><pre className="whitespace-pre-wrap text-muted-foreground">{msg.content}</pre></div>}</div>;
-              }
-              return <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>{msg.role === "assistant" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><img src="/logo-light.png" alt="Forge Logo" className="h-4 w-4 object-contain" /></div>}<div className={cn("max-w-[80%] rounded-2xl px-4 py-2.5", msg.role === "user" ? "bg-[#33d233] text-[#121212]" : "border border-[#e3ddd4] bg-white text-[#2f2b27]")}>{msg.role === "assistant" ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{msg.content}</Streamdown></div> : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>}</div>{msg.role === "user" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary"><User className="h-4 w-4 text-secondary-foreground" /></div>}</div>;
-            })}
-            {streaming.active && <><div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><Sparkles className="h-4 w-4 animate-pulse text-primary" /></div><div className="max-w-[80%] rounded-2xl border border-[#e3ddd4] bg-white px-4 py-2.5 text-[#2f2b27]">{streaming.content ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{streaming.content}</Streamdown></div> : <div className="flex gap-1.5 py-1"><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /></div>}</div></div></>}
+    <div className="grid h-full min-h-0 lg:grid-cols-[minmax(0,1fr)_392px]">
+      <div className="flex min-w-0 flex-col">
+        <div ref={scrollRef} className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+              {displayMessages.map((msg) => {
+                if (msg.role === "tool") {
+                  return <div key={msg.id} className="ml-11"><button onClick={() => toggleTool(msg.id)} className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground">{expandedTools.has(msg.id) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}<Terminal className="h-3 w-3" /><span>Tool execution</span></button>{expandedTools.has(msg.id) && <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-accent/30 p-3 text-xs font-mono"><pre className="whitespace-pre-wrap text-muted-foreground">{msg.content}</pre></div>}</div>;
+                }
+                return <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>{msg.role === "assistant" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><img src="/logo-light.png" alt="Forge Logo" className="h-4 w-4 object-contain" /></div>}<div className={cn("max-w-[80%] rounded-2xl px-4 py-2.5", msg.role === "user" ? "bg-[#33d233] text-[#121212]" : "border border-[#e3ddd4] bg-white text-[#2f2b27]")}>{msg.role === "assistant" ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{msg.content}</Streamdown></div> : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>}</div>{msg.role === "user" && <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary"><User className="h-4 w-4 text-secondary-foreground" /></div>}</div>;
+              })}
+              {streaming.active && <><div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10"><Sparkles className="h-4 w-4 animate-pulse text-primary" /></div><div className="max-w-[80%] rounded-2xl border border-[#e3ddd4] bg-white px-4 py-2.5 text-[#2f2b27]">{streaming.content ? <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#2f2b27] dark:prose-invert"><Streamdown>{streaming.content}</Streamdown></div> : <div className="flex gap-1.5 py-1"><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /><div className="typing-dot h-2 w-2 rounded-full bg-muted-foreground" /></div>}</div></div></>}
 
-            <div className="pt-2">
-              <ForgeComputerPanel
-                snapshot={computerSnapshot ?? null}
-                onLaunch={() => launchComputer.mutate()}
-                onRefresh={() => void refetchComputer()}
-                onClose={() => closeComputer.mutate()}
-                launching={launchComputer.isPending}
-                closing={closeComputer.isPending}
-              />
+              <div className="pt-2 lg:hidden">
+                <ForgeComputerPanel
+                  snapshot={computerSnapshot ?? null}
+                  onLaunch={() => launchComputer.mutate()}
+                  onRefresh={() => void refetchComputer()}
+                  onClose={() => closeComputer.mutate()}
+                  launching={launchComputer.isPending}
+                  closing={closeComputer.isPending}
+                />
+              </div>
             </div>
+          </ScrollArea>
+        </div>
+        <div className="shrink-0 border-t border-[#ddd8cf] bg-[#f6f5f2]/95 p-4 backdrop-blur-sm">
+          <div className="mx-auto max-w-3xl">
+            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="overflow-hidden rounded-[30px] border border-[#ded9d1] bg-white shadow-[0_8px_30px_rgba(42,37,30,0.05)]">
+              <div className="px-5 pt-5">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask anything..."
+                  className="min-h-[110px] max-h-32 w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-8 text-[#2f2b27] shadow-none outline-none placeholder:text-[#6e6963] focus-visible:border-0 focus-visible:ring-0 focus-visible:shadow-none"
+                  rows={3}
+                  disabled={streaming.active}
+                />
+
+                <div className="mt-4 flex items-center justify-between pb-4">
+                  <div className="flex items-center gap-2.5">
+                    <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
+                      <Plus className="h-5 w-5" />
+                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-4.5 text-[15px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f4f1eb]">
+                          <Link2 className="h-4.5 w-4.5" />
+                          <span>{activeConnectorTypes.length ? `+${activeConnectorTypes.length}` : "+0"}</span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" side="top" sideOffset={12} className="w-[320px] rounded-[22px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
+                        <div className="space-y-1">
+                          {connectorRows.map((row) => {
+                            const enabledInChat = activeConnectorTypes.includes(row.type);
+                            return (
+                              <button
+                                key={row.key}
+                                type="button"
+                                onClick={() => void handleChatConnectorToggle(row)}
+                                className="flex w-full items-center justify-between rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-[#f4f1eb]"
+                              >
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f7f5f1]">
+                                    <row.icon className="h-5 w-5" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="text-[13px] font-medium text-[#2f2b27]">{row.title}</div>
+                                    <div className="truncate text-[11px] leading-4 text-[#8a847c]">{row.description}</div>
+                                  </div>
+                                </div>
+                                <Switch checked={enabledInChat} className="pointer-events-none" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-2 grid gap-1 rounded-[16px] border border-[#ece7df] bg-[#fbfaf8] p-1">
+                          <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                            <span>Add connectors</span>
+                            <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
+                          </button>
+                          <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
+                            <span>Manage connectors</span>
+                            <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <button type="button" onClick={() => setLocation("/connectors")} className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
+                      <Monitor className="h-4.5 w-4.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
+                      <AudioLines className="h-4.5 w-4.5" />
+                    </button>
+                    <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
+                      <Mic className="h-4.5 w-4.5" />
+                    </button>
+                    {streaming.active ? (
+                      <Button type="button" size="icon" variant="destructive" className="h-[44px] w-[44px] shrink-0" onClick={handleStop}>
+                        <StopCircle className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button type="submit" size="icon" disabled={!input.trim() || !canSend} className="h-[44px] w-[44px] shrink-0">
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {promoVisible ? (
+                <div className="flex items-start gap-4 border-t border-[#d9e9fb] bg-[#e9f4ff] px-6 py-4 text-[15px] leading-7 text-[#53677b]">
+                  <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#3c82f6] text-white"><Gem className="h-4 w-4" /></div>
+                  <div className="flex-1">
+                    <div><span>Your task on Forge Desktop consumes </span><span className="font-semibold">50% fewer credits</span></div>
+                    <div className="mt-1"><button type="button" className="font-medium text-[#3576df]">Download now</button></div>
+                  </div>
+                  <button type="button" onClick={() => setPromoVisible(false)} className="mt-1 text-[#7c8ca0]"><ChevronRight className="h-5 w-5 rotate-45" /></button>
+                </div>
+              ) : null}
+            </form>
+            {!canSend && !streaming.active && <p className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-500">Add a valid NVIDIA API key to start chatting.</p>}
           </div>
-        </ScrollArea>
-      </div>
-      <div className="shrink-0 border-t border-[#ddd8cf] bg-[#f6f5f2]/95 p-4 backdrop-blur-sm">
-        <div className="mx-auto max-w-3xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="overflow-hidden rounded-[30px] border border-[#ded9d1] bg-white shadow-[0_8px_30px_rgba(42,37,30,0.05)]">
-            <div className="px-5 pt-5">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask anything..."
-                className="min-h-[110px] max-h-32 w-full resize-none border-0 bg-transparent p-0 text-[16px] leading-8 text-[#2f2b27] shadow-none outline-none placeholder:text-[#6e6963] focus-visible:border-0 focus-visible:ring-0 focus-visible:shadow-none"
-                rows={3}
-                disabled={streaming.active}
-              />
-
-              <div className="mt-4 flex items-center justify-between pb-4">
-                <div className="flex items-center gap-2.5">
-                  <button type="button" className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
-                    <Plus className="h-5 w-5" />
-                  </button>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button type="button" className="flex h-12 items-center gap-2 rounded-full border border-[#e4e0d8] bg-[#faf9f6] px-4.5 text-[15px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f4f1eb]">
-                        <Link2 className="h-4.5 w-4.5" />
-                        <span>{activeConnectorTypes.length ? `+${activeConnectorTypes.length}` : "+0"}</span>
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" side="top" sideOffset={12} className="w-[320px] rounded-[22px] border border-[#e6e1d8] bg-white p-2 shadow-[0_22px_60px_rgba(42,37,30,0.12)]">
-                      <div className="space-y-1">
-                        {connectorRows.map((row) => {
-                          const enabledInChat = activeConnectorTypes.includes(row.type);
-                          return (
-                            <button
-                              key={row.key}
-                              type="button"
-                              onClick={() => void handleChatConnectorToggle(row)}
-                              className="flex w-full items-center justify-between rounded-[16px] px-3 py-2 text-left transition-colors hover:bg-[#f4f1eb]"
-                            >
-                              <div className="flex min-w-0 items-center gap-2.5">
-                                <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f7f5f1]">
-                                  <row.icon className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[13px] font-medium text-[#2f2b27]">{row.title}</div>
-                                  <div className="truncate text-[11px] leading-4 text-[#8a847c]">{row.description}</div>
-                                </div>
-                              </div>
-                              <Switch checked={enabledInChat} className="pointer-events-none" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-2 grid gap-1 rounded-[16px] border border-[#ece7df] bg-[#fbfaf8] p-1">
-                        <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
-                          <span>Add connectors</span>
-                          <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
-                        </button>
-                        <button type="button" onClick={() => setLocation("/connectors")} className="flex items-center justify-between rounded-[13px] px-3 py-2 text-left text-[13px] font-medium text-[#2f2b27] transition-colors hover:bg-[#f2efe9]">
-                          <span>Manage connectors</span>
-                          <ChevronRight className="h-3.5 w-3.5 text-[#8a847c]" />
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <button type="button" onClick={() => setLocation("/connectors")} className="flex h-12 w-12 items-center justify-center rounded-full border border-[#e4e0d8] bg-[#faf9f6] text-[#3b3632] transition-colors hover:bg-[#f4f1eb]">
-                    <Monitor className="h-4.5 w-4.5" />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
-                    <AudioLines className="h-4.5 w-4.5" />
-                  </button>
-                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full text-[#5a5550] transition-colors hover:bg-[#f1efea]">
-                    <Mic className="h-4.5 w-4.5" />
-                  </button>
-                  {streaming.active ? (
-                    <Button type="button" size="icon" variant="destructive" className="h-[44px] w-[44px] shrink-0" onClick={handleStop}>
-                      <StopCircle className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button type="submit" size="icon" disabled={!input.trim() || !canSend} className="h-[44px] w-[44px] shrink-0">
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {promoVisible ? (
-              <div className="flex items-start gap-4 border-t border-[#d9e9fb] bg-[#e9f4ff] px-6 py-4 text-[15px] leading-7 text-[#53677b]">
-                <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#3c82f6] text-white"><Gem className="h-4 w-4" /></div>
-                <div className="flex-1">
-                  <div><span>Your task on Forge Desktop consumes </span><span className="font-semibold">50% fewer credits</span></div>
-                  <div className="mt-1"><button type="button" className="font-medium text-[#3576df]">Download now</button></div>
-                </div>
-                <button type="button" onClick={() => setPromoVisible(false)} className="mt-1 text-[#7c8ca0]"><ChevronRight className="h-5 w-5 rotate-45" /></button>
-              </div>
-            ) : null}
-          </form>
-          {!canSend && !streaming.active && <p className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-500">Add a valid NVIDIA API key to start chatting.</p>}
         </div>
       </div>
+      <aside className="hidden min-h-0 border-l border-[#ddd8cf] bg-[#f6f5f2]/90 lg:block">
+        <div className="sticky top-0 h-full overflow-y-auto px-4 py-4">
+          <ForgeComputerPanel
+            snapshot={computerSnapshot ?? null}
+            onLaunch={() => launchComputer.mutate()}
+            onRefresh={() => void refetchComputer()}
+            onClose={() => closeComputer.mutate()}
+            launching={launchComputer.isPending}
+            closing={closeComputer.isPending}
+          />
+        </div>
+      </aside>
     </div>
   );
 }
