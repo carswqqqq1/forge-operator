@@ -40,6 +40,7 @@ export function ForgeComputerPanel({
 }: ForgeComputerPanelProps) {
   const hasSnapshot = !!snapshot?.connected && !!snapshot?.screenshot;
   const streamUrl = snapshot?.streamUrl || "";
+  const hasLiveStream = !!snapshot?.connected && !!streamUrl;
 
   return (
     <div className="overflow-hidden rounded-[30px] border border-[#e0ddd6] bg-[#efeeea] p-4 shadow-[0_8px_24px_rgba(42,37,30,0.03)] md:p-5">
@@ -82,7 +83,19 @@ export function ForgeComputerPanel({
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="overflow-hidden rounded-[22px] border border-[#e3ddd4] bg-white shadow-[0_8px_24px_rgba(42,37,30,0.05)]">
-          {hasSnapshot ? (
+          {hasLiveStream ? (
+            <div className="relative min-h-[220px] overflow-hidden bg-[#0f0f10]">
+              <iframe
+                src={streamUrl}
+                title="Forge computer live stream"
+                className="h-[420px] w-full border-0"
+                allow="fullscreen; clipboard-read; clipboard-write"
+              />
+              <div className="absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm">
+                Live
+              </div>
+            </div>
+          ) : hasSnapshot ? (
             <img
               src={snapshot?.screenshot || undefined}
               alt="Forge computer screenshot"
@@ -147,4 +160,3 @@ export function ForgeComputerPanel({
     </div>
   );
 }
-

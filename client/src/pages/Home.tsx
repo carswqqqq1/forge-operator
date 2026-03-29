@@ -154,7 +154,7 @@ export default function Home({ conversationId }: { conversationId?: string }) {
   const { data: nvidiaStatus } = trpc.nvidia.status.useQuery();
   const { data: usageState } = trpc.usage.state.useQuery(undefined, { refetchInterval: 5000 });
   const { data: connectors, refetch: refetchConnectors } = trpc.connectors.list.useQuery(undefined, { refetchInterval: 5000 });
-  const { data: computerSnapshot, refetch: refetchComputer } = trpc.computer.snapshot.useQuery(undefined, { refetchInterval: 5000 });
+  const { data: computerSnapshot, refetch: refetchComputer } = trpc.computer.snapshot.useQuery(undefined, { refetchInterval: 1500 });
   const createConversation = trpc.conversations.create.useMutation();
   const updateConversation = trpc.conversations.update.useMutation({
     onSuccess: () => {
