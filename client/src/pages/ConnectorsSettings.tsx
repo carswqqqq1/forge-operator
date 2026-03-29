@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { startConnectorAuth } from "@/lib/connector-auth";
 import { appDefinitions, type AppDefinition } from "@/components/connectors-data";
-import { Check, ChevronRight, Plug, RefreshCw, ShieldCheck } from "lucide-react";
+import { Check, ChevronRight, Github, Plug, RefreshCw, ShieldCheck } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -147,11 +147,26 @@ export default function ConnectorsSettings() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#2f2b27]">Connectors</h2>
-        <p className="max-w-2xl text-[14px] leading-6 text-[#756f67]">
-          Connect the services Forge can actually act on. After approval, Forge can read context and use it inside tasks.
-        </p>
+      <div className="rounded-[28px] border border-[#e7e1d7] bg-white p-6 shadow-[0_12px_35px_rgba(15,23,42,0.03)]">
+        <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#ece7de] bg-[#fbfaf8] px-3 py-1.5 text-[12px] font-medium text-[#6a645d]">
+              <Github className="h-3.5 w-3.5" />
+              GitHub access for Forge
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-[28px] font-semibold tracking-[-0.03em] text-[#2f2b27]">Connect your accounts</h2>
+              <p className="max-w-2xl text-[14px] leading-6 text-[#756f67]">
+                Sign in once, approve access, and Forge can read your GitHub repos, Gmail threads, and Drive files inside tasks.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-2 text-[12px] text-[#6f685f] md:max-w-[290px]">
+            <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">1. Open GitHub connector</div>
+            <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">2. Sign in and approve repo access</div>
+            <div className="rounded-[16px] border border-[#ece7de] bg-[#fbfaf8] px-4 py-3">3. Start asking Forge about your code</div>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4">
@@ -161,11 +176,11 @@ export default function ConnectorsSettings() {
       </div>
 
       <div className="rounded-[24px] border border-[#e7e1d7] bg-[#fbfaf8] p-5 text-[13px] leading-6 text-[#6f685f]">
-        <div className="font-semibold text-[#322f2a]">What happens after you sign in</div>
+        <div className="font-semibold text-[#322f2a]">What Forge can do once connected</div>
         <div className="mt-2 grid gap-2 md:grid-cols-3">
-          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Forge can read only the scopes you approved.</div>
-          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Connector state stays saved per user and reloads automatically.</div>
-          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">You can disconnect anytime from this page or in settings.</div>
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Read the files and threads you approved.</div>
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Use connector context inside chats and tasks.</div>
+          <div className="rounded-[16px] border border-[#ece7de] bg-white px-4 py-3">Disconnect anytime and revoke access instantly.</div>
         </div>
       </div>
     </div>
