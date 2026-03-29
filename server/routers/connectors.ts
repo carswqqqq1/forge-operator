@@ -72,16 +72,24 @@ export function registerConnectorRoutes(app: Express) {
     try {
       const code = req.query.code as string;
       const state = req.query.state as string;
+      const error = req.query.error as string;
+
+      // Handle user denial
+      if (error) {
+        console.warn("[Connectors] Google OAuth denied:", error);
+        return res.redirect(`/connectors?error=${error}`);
+      }
 
       if (!code || !state) {
-        return res.redirect("/login?error=missing_code_or_state");
+        return res.redirect("/connectors?error=missing_code_or_state");
       }
 
       let stateData;
       try {
         stateData = JSON.parse(Buffer.from(state, "base64").toString());
-      } catch {
-        return res.redirect("/login?error=invalid_state");
+      } catch (e) {
+        console.error("[Connectors] Invalid state:", e);
+        return res.redirect("/connectors?error=invalid_state");
       }
 
       const { userId, service } = stateData;
@@ -103,10 +111,11 @@ export function registerConnectorRoutes(app: Express) {
         tokenState
       );
 
-      res.redirect(`/?connector=${service}&status=connected`);
+      console.log(`[Connectors] Successfully connected ${service}`);
+      res.redirect(`/connectors?connector=${service}&status=connected`);
     } catch (error) {
-      console.error("[Connectors] Callback failed:", error);
-      res.redirect("/login?error=callback_failed");
+      console.error("[Connectors] Google callback failed:", error);
+      res.redirect("/connectors?error=callback_failed");
     }
   });
 
@@ -145,16 +154,24 @@ export function registerConnectorRoutes(app: Express) {
     try {
       const code = req.query.code as string;
       const state = req.query.state as string;
+      const error = req.query.error as string;
+
+      // Handle user denial
+      if (error) {
+        console.warn("[Connectors] GitHub OAuth denied:", error);
+        return res.redirect(`/connectors?error=${error}`);
+      }
 
       if (!code || !state) {
-        return res.redirect("/login?error=missing_code_or_state");
+        return res.redirect("/connectors?error=missing_code_or_state");
       }
 
       let stateData;
       try {
         stateData = JSON.parse(Buffer.from(state, "base64").toString());
-      } catch {
-        return res.redirect("/login?error=invalid_state");
+      } catch (e) {
+        console.error("[Connectors] Invalid state:", e);
+        return res.redirect("/connectors?error=invalid_state");
       }
 
       const { userId } = stateData;
@@ -166,10 +183,11 @@ export function registerConnectorRoutes(app: Express) {
 
       await manager.saveConnectorState(userId, "github", tokenState);
 
-      res.redirect("/?connector=github&status=connected");
+      console.log("[Connectors] Successfully connected GitHub");
+      res.redirect("/connectors?connector=github&status=connected");
     } catch (error) {
       console.error("[Connectors] GitHub callback failed:", error);
-      res.redirect("/login?error=callback_failed");
+      res.redirect("/connectors?error=callback_failed");
     }
   });
 
