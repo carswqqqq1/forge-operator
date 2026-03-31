@@ -6,3 +6,11 @@ dist/
 *.log
 .DS_Store
 pnpm-lock.yaml
+
+# Environment files - NEVER commit actual keys
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
