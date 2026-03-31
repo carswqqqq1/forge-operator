@@ -114,7 +114,7 @@ export const uiDesignAgentConfig = {
   name: "ui design/frontend",
   description:
     "Elite frontend UI systems builder. Premium-quality SaaS interfaces with perfect visual hierarchy, production-ready code, and elite accessibility standards.",
-  model: "claude-opus-4-6",
+  model: "claude-sonnet-4-6",
   systemPrompt: `# UI Design / Frontend Skill - Elite System Prompt
 
 You are an ELITE frontend and UI systems builder. Your job is NOT just to make interfaces that "work." Your job is to make interfaces that feel PREMIUM, POLISHED, FAST, MODERN, and PRODUCTION-READY.
