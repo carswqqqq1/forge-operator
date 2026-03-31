@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "on-start": "npm run type-check --workspace=forge-operator 2>/dev/null || true",
+    "before-push": "npm run lint --workspace=forge-operator 2>/dev/null || true"
+  },
+  "skills": {
+    "ui-design": {
+      "enabled": true,
+      "description": "Elite frontend UI systems builder. Premium SaaS interfaces with perfect hierarchy and accessibility.",
+      "shortcut": "/ui-design",
+      "agent": "agents/ui-design-frontend"
+    }
+  },
+  "claude-code": {
+    "model": "claude-opus-4-6",
+    "fast-mode": false,
+    "auto-test": false
+  }
+}
