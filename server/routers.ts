@@ -329,7 +329,20 @@ export const appRouter = router({
   }),
 
   skills: router({
-    list: protectedProcedure.query(async ({ ctx }) => db.listSkills(ctx.user!.id)),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const skills = await db.listSkills(ctx.user!.id);
+      // Metadata-first: return everything except instructions for the list
+      return skills.map(({ instructions, ...rest }) => rest);
+    }),
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const skill = await db.getSkill(input.id);
+        if (!skill || (skill.userId !== null && skill.userId !== ctx.user!.id)) {
+          throw new Error("Unauthorized or not found");
+        }
+        return skill;
+      }),
     create: protectedProcedure
       .input(z.object({ name: z.string(), slug: z.string(), description: z.string().optional(), category: z.string().optional(), instructions: z.string(), triggerCommand: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
@@ -351,6 +364,19 @@ export const appRouter = router({
         if (!owned) throw new Error("Unauthorized");
         await db.deleteSkill(input.id);
         return { success: true };
+      }),
+    discover: protectedProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ input, ctx }) => {
+        const skills = await db.listSkills(ctx.user!.id);
+        const normalizedQuery = input.query.toLowerCase();
+        return skills
+          .filter(s => 
+            s.name.toLowerCase().includes(normalizedQuery) || 
+            s.description?.toLowerCase().includes(normalizedQuery) ||
+            s.category?.toLowerCase().includes(normalizedQuery)
+          )
+          .map(({ instructions, ...rest }) => rest);
       }),
   }),
 
