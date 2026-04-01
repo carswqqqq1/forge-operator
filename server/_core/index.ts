@@ -13,6 +13,8 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import * as claude from "../claude";
 import { ConnectorManager } from "../connectors/manager";
+import { runDream } from "./memory/autoDream";
+import { createSession, getSession } from "./bridge";
 
 import * as nvidia from "../nvidia";
 import { AVAILABLE_TOOLS, executeTool } from "../tools";
@@ -339,6 +341,17 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    
+    // Initialize background services
+    console.log("[Forge] Initializing background services...");
+    
+    // Run AutoDream every 4 hours
+    setInterval(async () => {
+      const users = await db.listAllUsers();
+      for (const user of users) {
+        await runDream(user.id);
+      }
+    }, 1000 * 60 * 60 * 4);
   });
 }
 

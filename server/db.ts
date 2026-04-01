@@ -1054,3 +1054,12 @@ export async function listConnectorStates(userId: number): Promise<string[]> {
   }
   return Array.from(types);
 }
+
+export async function listAllUsers() {
+  const db = await getDb();
+  if (!db) {
+    const store = await readLocalStore();
+    return store.users;
+  }
+  return db.select().from(users);
+}
