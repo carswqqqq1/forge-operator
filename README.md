@@ -1,42 +1,46 @@
-# Local Manus Agent
+# Forge Operator (Enhanced with Claude Code Features)
 
-A comprehensive local AI agent powered by **Ollama** and your **Claude subscription** — replicating the full Manus experience on your Mac mini. No API keys required for Claude; uses your existing subscription directly.
+A comprehensive local AI agent OS powered by **Ollama**, **NVIDIA NIM**, and your **Claude subscription**. This version has been upgraded with advanced architectural patterns from **Claude Code** to provide a more robust, scalable, and credit-efficient agent experience.
 
-## Features
+## 🚀 New Claude Code Integrations
 
-### Core Agent Engine
-- **Ollama Integration** — Connects to localhost:11434 for local model inference (Llama 3, Mistral, Phi, etc.)
-- **Claude Subscription** — Two modes: Cookie relay (fast, headless) or Browser automation (visual, interactive)
-- **Streaming Responses** — Token-by-token streaming with live tok/s metrics
-- **Tool Execution** — Shell commands, file operations, web scraping, Python execution, web search, memory
+### 🧠 Advanced Memory System (AutoDream)
+- **Episodic vs. Durable Memory** — Distinguishes between task-specific context and long-term user preferences.
+- **AutoDream Background Service** — Periodically synthesizes episodic memories into durable ones using a reflective "dream" pass (inspired by Claude Code's memory consolidation).
+- **Metadata-First Retrieval** — Optimized memory recall with category filtering and semantic search.
 
-### Chat Interface
-- Dark theme matching Manus aesthetic
-- Message bubbles with markdown rendering and syntax highlighting
-- Collapsible tool call details inline in chat
-- Provider selector: switch between Ollama (local) and Claude (subscription)
-- Conversation sidebar with history
+### 🛠️ Enhanced Tool Contract
+- **Advanced Tool Definitions** — Tools now include `isReadOnly`, `isDestructive`, and `category` metadata for better safety and planning.
+- **Sub-Agent Spawning** — Agents can now spawn specialized sub-agents (Researcher, Coder, Reviewer) to handle complex sub-tasks in parallel.
+- **Improved Shell & File Tools** — Robust execution with better error handling and output management.
 
-### Specialized Features
-- **Wide Research** — Parallel data collection from multiple sources
-- **Skills System** — Reusable workflows with categories and search
-- **Connectors** — Telegram, YouTube, Webhook, and API integrations
-- **Scheduled Tasks** — Recurring automation with cron expressions
-- **Memory** — Long-term preference and context retention
-- **System Prompts** — Editor with preset templates for agent personalities
+### 🏗️ Bridge Architecture
+- **Session & Capability Management** — Decouples the UI from the runtime, allowing for persistent sessions and capability negotiation (Streaming, MCP, Computer, Multi-Agent).
+- **Background Task Persistence** — Tasks continue running even if the UI is detached.
 
-### Dashboard & Monitoring
-- Tool execution history with filters
-- Latency and success rate metrics
-- JSON response inspection panel
-- Model memory/size indicators
+### 📚 Metadata-First Skills
+- **Discovery Support** — Search and discover reusable workflows without loading full instruction sets until needed.
+- **Optimized Loading** — Faster UI performance by separating skill metadata from heavy instruction content.
+
+## Core Features
+
+### Agent Engine
+- **Ollama Integration** — Local model inference (Llama 3, Mistral, Phi, etc.).
+- **NVIDIA NIM Support** — High-performance cloud inference for complex reasoning.
+- **Claude Subscription** — Use your existing Claude Pro subscription directly (Cookie relay or Browser automation).
+- **Tool Execution** — Shell, File, Web Scrape, Python, Web Search, Memory, Sub-Agents.
+
+### Chat & Interface
+- **Dark Theme** — Professional Manus-inspired aesthetic.
+- **Markdown & Syntax Highlighting** — Rich rendering for code and documents.
+- **Collapsible Tool Details** — Clean chat flow with deep-dive capabilities.
 
 ## Quick Start
 
 ### Prerequisites
 - **Node.js 18+** and **pnpm**
 - **Ollama** installed and running (`brew install ollama && ollama serve`)
-- **qwen3:8b** model pulled (`ollama pull qwen3:8b`) — lightweight 8B local model, runs efficiently on 16GB RAM
+- **MySQL/TiDB** for persistent storage.
 
 ### Installation
 
@@ -54,53 +58,13 @@ pnpm dev
 
 The app will be available at `http://localhost:3000`.
 
-### Using Claude (No API Key)
-
-#### Cookie Relay Mode (Recommended)
-1. Log into [claude.ai](https://claude.ai) in your browser
-2. Open DevTools → Application → Cookies → claude.ai
-3. Copy the `sessionKey` cookie value
-4. Go to Settings → Claude → Cookie Relay → Paste and Connect
-
-#### Browser Automation Mode
-1. Go to Settings → Claude → Browser Automation
-2. Set your Chrome path (auto-detected on macOS)
-3. Click "Launch Browser" — it opens Chrome with your profile
-4. The agent types messages directly into claude.ai
-
-## Optimized For
-
-| Hardware | Recommendation |
-|----------|---------------|
-| Mac mini M1/M2, 16GB RAM | **qwen3:8b** (8B local model) — Recommended default |
-| 7B models | llama3.2, mistral — fast, fits in RAM |
-| 13B models | Good balance, may use some swap |
-| 3B models | Ultra-fast for simple tasks |
-| 70B+ local models | Avoid on 16GB — extremely slow, too large |
-
 ## Tech Stack
 
 - **Frontend:** React 19, Tailwind CSS 4, shadcn/ui, Wouter
 - **Backend:** Express 4, tRPC 11, Drizzle ORM
-- **Database:** MySQL/TiDB (conversations, messages, tools, skills, connectors)
-- **Inference:** Ollama (local) + Claude subscription (cloud)
+- **Database:** MySQL/TiDB (Enhanced schema for tasks and memory)
+- **Inference:** Ollama (Local) + NVIDIA NIM + Claude Subscription
 - **Browser Automation:** Puppeteer-core
-
-## Project Structure
-
-```
-client/src/
-  pages/          — All feature pages (Chat, Dashboard, Logs, etc.)
-  components/     — Reusable UI components + AppLayout
-server/
-  ollama.ts       — Ollama HTTP API client
-  claude.ts       — Claude subscription client (cookie + browser)
-  tools.ts        — Tool execution engine
-  db.ts           — Database query helpers
-  routers.ts      — tRPC procedures
-drizzle/
-  schema.ts       — Database schema (13 tables)
-```
 
 ## License
 
