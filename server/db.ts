@@ -376,7 +376,7 @@ export async function updateToolExecution(id: number, data: Partial<InsertToolEx
 }
 
 // ─── Memory ──────────────────────────────────────────────────────────
-export async function storeMemory(userId: number, category: string, key: string, value: string, source: string) {
+export async function storeMemory(userId: number, category: string, key: string, value: string, source: string, type: "episodic" | "durable" = "episodic") {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
@@ -385,6 +385,7 @@ export async function storeMemory(userId: number, category: string, key: string,
     if (existing) {
       existing.value = value;
       existing.source = source;
+      existing.type = type;
       existing.updatedAt = now;
     } else {
       const id = ++store.counters.memories;
@@ -395,6 +396,7 @@ export async function storeMemory(userId: number, category: string, key: string,
         key,
         value,
         source,
+        type,
         createdAt: now,
         updatedAt: now,
       });
@@ -402,10 +404,10 @@ export async function storeMemory(userId: number, category: string, key: string,
     await writeLocalStore(store);
     return;
   }
-  await db.insert(memories).values({ userId, category, key, value, source });
+  await db.insert(memories).values({ userId, category, key, value, source, type });
 }
 
-export async function recallMemory(userId: number, search?: string) {
+export async function recallMemory(userId: number, search?: string, category?: string) {
   const db = await getDb();
   if (!db) {
     const store = await readLocalStore();
@@ -413,6 +415,7 @@ export async function recallMemory(userId: number, search?: string) {
     return store.memories
       .filter((memory) => memory.userId === userId)
       .filter((memory) => {
+        if (category && memory.category !== category) return false;
         if (!normalizedSearch) return true;
         return memory.key.toLowerCase().includes(normalizedSearch) || memory.value.toLowerCase().includes(normalizedSearch);
       })
@@ -420,6 +423,7 @@ export async function recallMemory(userId: number, search?: string) {
       .slice(0, 20);
   }
   const conditions = [eq(memories.userId, userId)];
+  if (category) conditions.push(eq(memories.category, category));
   if (search) conditions.push(sql`(${memories.key} LIKE ${`%${search}%`} OR ${memories.value} LIKE ${`%${search}%`})`);
   return db.select().from(memories).where(and(...conditions)).orderBy(desc(memories.updatedAt)).limit(20);
 }

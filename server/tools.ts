@@ -1,6 +1,6 @@
 /**
- * Tool Execution Engine
- * Provides shell, file, web scraping, and code execution capabilities
+ * Forge Tool Execution Engine
+ * Enhanced with Claude Code patterns: advanced contracts, safety flags, and multi-agent support.
  */
 import { exec } from "child_process";
 import { promises as fs } from "fs";
@@ -13,10 +13,21 @@ import {
   performComputerAction,
 } from "./computer";
 
+// ─── Types & Interfaces ──────────────────────────────────────────────
+
 export interface ToolResult {
   success: boolean;
   output: string;
   durationMs: number;
+  isReadOnly?: boolean;
+  isDestructive?: boolean;
+}
+
+export interface ForgeTool extends OllamaTool {
+  category: "system" | "files" | "web" | "memory" | "agent" | "computer";
+  isReadOnly?: boolean;
+  isDestructive?: boolean;
+  renderSummary?: (args: any, result: ToolResult) => string;
 }
 
 function summarizeComputerSnapshot(snapshot: Awaited<ReturnType<typeof getComputerSnapshot>>) {
@@ -37,11 +48,13 @@ function summarizeComputerSnapshot(snapshot: Awaited<ReturnType<typeof getComput
   );
 }
 
-// ─── Tool Definitions for Ollama ─────────────────────────────────────
+// ─── Tool Definitions ────────────────────────────────────────────────
 
-export const AVAILABLE_TOOLS: OllamaTool[] = [
+export const AVAILABLE_TOOLS: ForgeTool[] = [
   {
     type: "function",
+    category: "system",
+    isReadOnly: false,
     function: {
       name: "shell",
       description: "Execute a shell command on the local system. Use for running programs, installing packages, system operations, git commands, etc.",
@@ -57,6 +70,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "files",
+    isReadOnly: true,
     function: {
       name: "file_read",
       description: "Read the contents of a file at the given path.",
@@ -71,6 +86,9 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "files",
+    isReadOnly: false,
+    isDestructive: true,
     function: {
       name: "file_write",
       description: "Write content to a file. Creates the file if it doesn't exist, overwrites if it does.",
@@ -86,6 +104,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "files",
+    isReadOnly: true,
     function: {
       name: "file_search",
       description: "Search for files matching a glob pattern or search for text within files using grep.",
@@ -102,6 +122,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "web",
+    isReadOnly: true,
     function: {
       name: "web_scrape",
       description: "Fetch and extract content from a URL. Returns the text content of the page.",
@@ -117,6 +139,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "system",
+    isReadOnly: false,
     function: {
       name: "python_exec",
       description: "Execute Python code in a sandboxed environment. Use for data analysis, calculations, file processing, etc.",
@@ -131,6 +155,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "web",
+    isReadOnly: true,
     function: {
       name: "web_search",
       description: "Search the web for information using DuckDuckGo. Returns search results with titles, URLs, and snippets.",
@@ -146,6 +172,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "memory",
+    isReadOnly: false,
     function: {
       name: "memory_store",
       description: "Store a piece of information in long-term memory for future reference.",
@@ -155,6 +183,7 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
           category: { type: "string", description: "Category: 'preference', 'fact', 'context', 'format'" },
           key: { type: "string", description: "A short key/label for this memory" },
           value: { type: "string", description: "The information to remember" },
+          type: { type: "string", enum: ["episodic", "durable"], description: "Memory type: episodic (task-specific) or durable (long-term facts)" },
         },
         required: ["category", "key", "value"],
       },
@@ -162,6 +191,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "memory",
+    isReadOnly: true,
     function: {
       name: "memory_recall",
       description: "Recall stored memories by category or search term.",
@@ -177,6 +208,26 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "agent",
+    isReadOnly: false,
+    function: {
+      name: "spawn_subagent",
+      description: "Spawn a specialized sub-agent to handle a specific sub-task. Useful for parallelizing work or delegating complex research/coding tasks.",
+      parameters: {
+        type: "object",
+        properties: {
+          goal: { type: "string", description: "The specific goal for the sub-agent" },
+          role: { type: "string", description: "The role/specialty of the sub-agent (e.g., 'researcher', 'coder', 'reviewer')" },
+          context: { type: "string", description: "Additional context or files the sub-agent should know about" },
+        },
+        required: ["goal", "role"],
+      },
+    },
+  },
+  {
+    type: "function",
+    category: "computer",
+    isReadOnly: true,
     function: {
       name: "computer_snapshot",
       description: "Get the current Forge computer snapshot, including status and stream information.",
@@ -189,6 +240,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "computer",
+    isReadOnly: false,
     function: {
       name: "computer_launch",
       description: "Launch or refresh the Forge computer desktop.",
@@ -201,6 +254,8 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "computer",
+    isReadOnly: false,
     function: {
       name: "computer_action",
       description: "Perform a direct action on the Forge computer desktop such as click, type, scroll, launch an app, or run a command.",
@@ -244,6 +299,9 @@ export const AVAILABLE_TOOLS: OllamaTool[] = [
   },
   {
     type: "function",
+    category: "computer",
+    isReadOnly: false,
+    isDestructive: true,
     function: {
       name: "computer_close",
       description: "Close the Forge computer desktop and release the sandbox.",
@@ -262,11 +320,13 @@ export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
   dbHelpers?: {
-    storeMemory?: (category: string, key: string, value: string, source: string) => Promise<void>;
+    storeMemory?: (category: string, key: string, value: string, source: string, type?: "episodic" | "durable") => Promise<void>;
     recallMemory?: (category?: string, search?: string) => Promise<any[]>;
+    spawnSubagent?: (goal: string, role: string, context?: string) => Promise<any>;
   }
 ): Promise<ToolResult> {
   const start = Date.now();
+  const toolDef = AVAILABLE_TOOLS.find(t => t.function.name === toolName);
 
   try {
     let output: string;
@@ -303,9 +363,10 @@ export async function executeTool(
             args.category as string,
             args.key as string,
             args.value as string,
-            "agent"
+            "agent",
+            (args.type as "episodic" | "durable") || "episodic"
           );
-          output = `Stored memory: [${args.category}] ${args.key}`;
+          output = `Stored ${args.type || 'episodic'} memory: [${args.category}] ${args.key}`;
         } else {
           output = "Memory storage not available";
         }
@@ -314,10 +375,22 @@ export async function executeTool(
         if (dbHelpers?.recallMemory) {
           const memories = await dbHelpers.recallMemory(args.category as string, args.search as string);
           output = memories.length > 0
-            ? memories.map(m => `[${m.category}] ${m.key}: ${m.value}`).join("\n")
+            ? memories.map(m => `[${m.category}] ${m.key}: ${m.value} (${m.type || 'episodic'})`).join("\n")
             : "No memories found";
         } else {
           output = "Memory recall not available";
+        }
+        break;
+      case "spawn_subagent":
+        if (dbHelpers?.spawnSubagent) {
+          const result = await dbHelpers.spawnSubagent(
+            args.goal as string,
+            args.role as string,
+            args.context as string
+          );
+          output = `Sub-agent spawned successfully. Task ID: ${result.taskId}`;
+        } else {
+          output = "Sub-agent spawning not available";
         }
         break;
       case "computer_snapshot": {
@@ -344,8 +417,13 @@ export async function executeTool(
         output = `Unknown tool: ${toolName}`;
         return { success: false, output, durationMs: Date.now() - start };
     }
-
-    return { success: true, output, durationMs: Date.now() - start };
+    return { 
+      success: true, 
+      output, 
+      durationMs: Date.now() - start,
+      isReadOnly: toolDef?.isReadOnly,
+      isDestructive: toolDef?.isDestructive
+    };
   } catch (error: any) {
     return {
       success: false,
@@ -408,15 +486,12 @@ async function executeWebScrape(url: string, selector?: string): Promise<string>
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   const html = await res.text();
-
-  // Basic HTML to text extraction
   const text = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-
   return text.slice(0, 8000);
 }
 
@@ -441,12 +516,9 @@ async function executeWebSearch(query: string, numResults: number): Promise<stri
       signal: AbortSignal.timeout(10000),
     });
     const html = await res.text();
-
-    // Extract results from DuckDuckGo HTML
     const results: string[] = [];
     const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
     const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
-
     let match;
     let i = 0;
     while ((match = linkRegex.exec(html)) && i < numResults) {
@@ -455,7 +527,6 @@ async function executeWebSearch(query: string, numResults: number): Promise<stri
       results.push(`${i + 1}. ${title}\n   ${href}`);
       i++;
     }
-
     i = 0;
     while ((match = snippetRegex.exec(html)) && i < numResults) {
       const snippet = match[1].replace(/<[^>]+>/g, "").trim();
@@ -464,17 +535,16 @@ async function executeWebSearch(query: string, numResults: number): Promise<stri
       }
       i++;
     }
-
     return results.length > 0 ? results.join("\n\n") : "No results found";
   } catch (e: any) {
     return `Search failed: ${e.message}`;
   }
 }
 
-/** Get tool definitions formatted for display */
-export function getToolSummary(): Array<{ name: string; description: string }> {
+export function getToolSummary(): Array<{ name: string; description: string; category: string }> {
   return AVAILABLE_TOOLS.map(t => ({
     name: t.function.name,
     description: t.function.description,
+    category: t.category,
   }));
 }

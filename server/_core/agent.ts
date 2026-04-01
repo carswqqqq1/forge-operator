@@ -1,17 +1,26 @@
 import * as db from "../db";
-
 import * as nvidia from "../nvidia";
 import { executeTool } from "../tools";
 import { buildForgeSystemMessages } from "./promptContext";
 import { getComputerSnapshot } from "../computer";
 
-type AgentPlan = {
+// ─── Types ───────────────────────────────────────────────────────────
+
+export type TaskType =
+  | "local_bash"
+  | "local_agent"
+  | "remote_agent"
+  | "research"
+  | "coding"
+  | "review";
+
+export type AgentPlan = {
   goal: string;
   steps: AgentStep[];
   reasoning: string;
 };
 
-type AgentStep = {
+export type AgentStep = {
   index: number;
   title: string;
   description: string;
@@ -20,14 +29,19 @@ type AgentStep = {
   expectedOutput?: string;
 };
 
+// ─── Task Planning ───────────────────────────────────────────────────
+
 export async function planTask(
   userId: number,
   goal: string,
-  model: string = "llama3"
+  model: string = "llama3",
+  context?: string
 ): Promise<AgentPlan> {
-  const planPrompt = `You are an expert task planner. Break down this goal into clear, executable steps:
+  const planPrompt = `You are an expert task planner for the Forge Agent OS. 
+Break down this goal into clear, executable steps.
 
 Goal: ${goal}
+${context ? `Context: ${context}` : ""}
 
 Provide a JSON response with this structure:
 {
@@ -95,27 +109,48 @@ Provide a JSON response with this structure:
   }
 }
 
+// ─── Task Execution ──────────────────────────────────────────────────
+
 export async function executeTask(
   userId: number,
   goal: string,
-  conversationId?: number,
-  model: string = "llama3"
+  options: {
+    conversationId?: number;
+    model?: string;
+    type?: TaskType;
+    parentTaskId?: number;
+    description?: string;
+    context?: string;
+  } = {}
 ) {
+  const {
+    conversationId,
+    model = "llama3",
+    type = "local_agent",
+    parentTaskId,
+    description,
+    context
+  } = options;
+
   try {
-    // Create task record
+    // Create task record with enhanced fields
     const taskResult = await db.createAgentTask({
       userId,
       conversationId: conversationId || null,
       goal,
+      type,
+      parentTaskId: parentTaskId || null,
+      description: description || goal,
       status: "planning",
       currentStep: 0,
       totalSteps: 0,
+      startTime: new Date(),
     });
 
     const taskId = taskResult.id;
 
     // Generate plan
-    const plan = await planTask(userId, goal, model);
+    const plan = await planTask(userId, goal, model, context);
 
     // Update task with plan
     await db.updateAgentTask(taskId, {
@@ -127,7 +162,6 @@ export async function executeTask(
     // Execute each step
     let result = "";
     for (const step of plan.steps) {
-      // Create step record
       const stepResult = await db.createAgentStep({
         userId,
         taskId,
@@ -142,12 +176,19 @@ export async function executeTask(
       try {
         let stepOutput = "";
 
-        if (step.tool && step.input) {
-          // Execute tool
-          const toolResult = await executeTool(step.tool, step.input, {
-            storeMemory: (category, key, value, source) =>
-              db.storeMemory(userId, category, key, value, source),
-            recallMemory: (search) => db.recallMemory(userId, search),
+        if (step.tool) {
+          // Execute tool with enhanced dbHelpers
+          const toolResult = await executeTool(step.tool, step.input || {}, {
+            storeMemory: (category, key, value, source, type) =>
+              db.storeMemory(userId, category, key, value, source, type),
+            recallMemory: (category, search) => db.recallMemory(userId, search, category),
+            spawnSubagent: (subGoal, role, subContext) => 
+              executeTask(userId, subGoal, {
+                model,
+                type: role as TaskType,
+                parentTaskId: taskId,
+                context: subContext
+              })
           });
 
           stepOutput = toolResult.output;
@@ -177,7 +218,7 @@ Provide a concise result.`;
           const nvidiaKey = process.env.NVIDIA_API_KEY;
           if (!nvidiaKey) throw new Error("NVIDIA API key not configured.");
 
-          let stepOutput = "";
+          let llmOutput = "";
           const stream = await nvidia.nvidiaStreamChat(nvidiaKey, {
             model,
             messages: messages.map((m) => ({
@@ -190,8 +231,10 @@ Provide a concise result.`;
 
           for await (const chunk of stream) {
             const delta = chunk.choices?.[0]?.delta?.content;
-            if (delta) stepOutput += delta;
+            if (delta) llmOutput += delta;
           }
+
+          stepOutput = llmOutput;
 
           await db.updateAgentStep(stepResult.id, {
             toolOutput: stepOutput,
@@ -214,6 +257,7 @@ Provide a concise result.`;
         await db.updateAgentTask(taskId, {
           status: "failed",
           result: `Failed at step ${step.index}: ${error.message}`,
+          endTime: new Date(),
         });
 
         throw error;
@@ -224,6 +268,7 @@ Provide a concise result.`;
     await db.updateAgentTask(taskId, {
       status: "completed",
       result,
+      endTime: new Date(),
     });
 
     return {
